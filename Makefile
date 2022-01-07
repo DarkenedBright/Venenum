@@ -11,7 +11,7 @@ LDFLAGS =
 APPNAME = Venenum
 EXT = .cpp
 SRCDIR = src
-OBJDIR = obj
+OBJDIR = src
 
 ############## Do not change anything from here downwards! #############
 SRC = $(wildcard $(SRCDIR)/*$(EXT))

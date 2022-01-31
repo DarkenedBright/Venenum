@@ -212,15 +212,16 @@ Board fenToBoard(std::string fenString)
 void outputBoardToConsole(Board board)
 {
     // 1. Print 8x8 board to console
-    for(int sq {0}; sq < NUM_SQUARES; ++sq)
+    for(int rank {RANK_8}; rank >= RANK_1; --rank)
     {
-        Piece curPiece = board.piecesOnBoard[sq];
-        char pieceChar = enumPieceToCharPiece(curPiece);
-        std::cout << pieceChar << ' ';
-        if(sq % NUM_FILES == 7)
+        for(int file {FILE_A}; file <= FILE_H; ++file)
         {
-            std::cout << '\n';
+            int sq = rank * 8 + file;
+            Piece curPiece = board.piecesOnBoard[sq];
+            char pieceChar = enumPieceToCharPiece(curPiece);
+            std::cout << pieceChar << ' ';
         }
+        std::cout << '\n';
     }
 
     // 2. Print other state data to console

@@ -1,7 +1,7 @@
 #ifndef BOARD_H
 #define BOARD_H
 
-#include <string>
+#include <string> //std::string
 
 enum Square
 {
@@ -28,7 +28,8 @@ enum Piece
 enum Castle
 {
     WHITE_KING_CASTLE = 1, WHITE_QUEEN_CASTLE = 2, 
-    BLACK_KING_CASTLE = 4, BLACK_QUEEN_CASTLE = 8
+    BLACK_KING_CASTLE = 4, BLACK_QUEEN_CASTLE = 8,
+    NUM_CASTLE_STATES = 16
 };
 
 enum Side
@@ -53,7 +54,7 @@ struct Board
     int castlingRights {};
     int fiftyMovesCount {};
     int ply {};
-    int positionIdentity {};
+    uint64_t positionIdentity {};
     Side sideToMove {};
 };
 

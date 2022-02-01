@@ -1,11 +1,13 @@
 #include "board.h"
+#include "zobrist.h"
 
-#include <cassert>
-#include <cctype>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <string_view>
+#include <cassert> //assert()
+#include <cctype> // std::isspace(), std::isdigit()
+#include <ios> // std::skipws, std::noskipws
+#include <iostream> //std::cout
+#include <sstream> //std::istringstream
+#include <string> //std::string
+#include <string_view> //std::string_view
 
 Square rankFileToSquare(Rank rank, File file)
 {
@@ -96,7 +98,6 @@ char enumPieceToCharPiece(Piece piece)
     }
 }
 
-//TODO: Zobrist Hash on resulting position from FEN string.
 Board fenToBoard(std::string fenString)
 {
     std::istringstream fenStringStream { fenString };
@@ -206,6 +207,9 @@ Board fenToBoard(std::string fenString)
     assert(fullMoves >= 1);
     fenBoard.ply = (fullMoves - 1) * 2 + fenBoard.sideToMove;
 
+    // 7. Compute position hash via Zobrist hashing.
+    fenBoard.positionIdentity = getPositionHash(fenBoard);
+
     return fenBoard;
 }
 
@@ -225,7 +229,7 @@ void outputBoardToConsole(Board board)
     }
 
     // 2. Print other state data to console
-    std::cout << "EnPassant Square: " << board.enPassantSquare << '\n';
+    std::cout << "\nEnPassant Square: " << board.enPassantSquare << '\n';
     std::cout << "Castling Rights: " << board.castlingRights << '\n';
     std::cout << "Fifty Moves Count: " << board.fiftyMovesCount << '\n';
     std::cout << "Ply: " << board.ply << '\n';

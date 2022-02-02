@@ -50,12 +50,12 @@ enum File
 struct Board
 {
     Piece piecesOnBoard[NUM_SQUARES] {};
-    Square enPassantSquare {};
-    int castlingRights {};
-    int fiftyMovesCount {};
-    int ply {};
-    uint64_t positionIdentity {};
-    Side sideToMove {};
+    Square enPassantSquare { NO_SQ };
+    int castlingRights { 15 };
+    int fiftyMovesCount { 0 };
+    int ply { 0 };
+    uint64_t positionIdentity { 0 };
+    Side sideToMove { WHITE };
 };
 
 inline const std::string STANDARD_START_FEN { "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" };

@@ -1,4 +1,5 @@
 #include "board.h"
+#include "uci.h"
 
 #include <iostream>
 
@@ -8,6 +9,8 @@ int main()
 
     Board position { fenToBoard(STANDARD_START_FEN) };
     outputBoardToConsole(position);
+
+    readConsole();
 
     return 0;
 }

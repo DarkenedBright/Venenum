@@ -1,14 +1,17 @@
-#include "board.h"
+#include "position.h"
 #include "uci.h"
 
-#include <iostream>
+#include <iostream> //std::cout
 
 int main()
 {
     std::cout << "Venenum - A UCI Chess Engine\n";
 
-    Board position { fenToBoard(STANDARD_START_FEN) };
-    outputBoardToConsole(position);
+    //Initialization of Engine
+    Position::initZobristPositionKeys();
+
+    Position position { STANDARD_START_FEN };
+    position.print();
 
     readConsole();
 

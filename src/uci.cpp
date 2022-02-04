@@ -1,5 +1,5 @@
 #include "uci.h"
-#include "board.h"
+#include "position.h"
 
 #include <ios> //std::streamsize
 #include <iostream> //cin, cout
@@ -214,6 +214,8 @@ void commandPosition(std::istringstream& uciStringStream)
  */
 void commandGo(std::istringstream& uciStringStream)
 {
+    std::string uciPart {};
+    uciStringStream >> uciPart;
     std::cout << "WARNING: Command 'go' is not implemented.\n";
 }
 

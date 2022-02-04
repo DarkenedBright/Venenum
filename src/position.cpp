@@ -1,0 +1,221 @@
+#include "position.h"
+#include "prng.h"
+
+#include <cassert> //assert()
+#include <cctype> // std::isspace(), std::isdigit()
+#include <cstdint> //std::uint64_t
+#include <ios> // std::skipws, std::noskipws
+#include <iostream> //std::cout
+#include <sstream> //std::istringstream
+#include <string> //std::string
+#include <string_view> //std::string_view
+
+/* 
+ * Use Zobrist Hashing
+ * Credit: Albert L. Zobrist, The University of Wisconsin
+ * https://research.cs.wisc.edu/techreports/1970/TR88.pdf
+ */
+void Position::initZobristPositionKeys()
+{
+    PRNG randGen { POSITION_ZOBRIST_SEED };
+
+    // uint64_t pieceSquareKeys[NUM_SQUARES][NUM_PIECES];
+    for(int sq { A1 }; sq < NUM_SQUARES; ++sq)
+    {
+        for(int piece { EMPTY }; piece < NUM_PIECES; ++piece)
+        {
+            pieceSquareKeys[sq][piece] = randGen.xorShiftRand();
+        }
+    }
+
+    // uint64_t sideToMoveKey;
+    sideToMoveKey = randGen.xorShiftRand();
+
+    // uint64_t castlingRightKeys[NUM_CASTLE_STATES];
+    for(int castle { 0 }; castle < NUM_CASTLE_STATES; ++castle)
+    {
+        castlingRightKeys[castle] = randGen.xorShiftRand();
+    }
+
+    // uint64_t enPassantFileKeys[NUM_FILES];
+    for(int file { FILE_A }; file < NUM_FILES; ++file)
+    {
+        enPassantFileKeys[file] = randGen.xorShiftRand();
+    }
+}
+
+Position::Position(const std::string& fenString)
+{
+    std::istringstream fenStringStream { fenString };
+
+    constexpr std::string_view validPieceChars { "PNBRQKpnbrqk" };
+    constexpr std::string_view validCastlingChars { "KQkq-" };
+    int sq { A8 };
+    char fenChar {};
+    int fiftyMoves {};
+    int fullMoves {};
+
+    fenStringStream >> std::noskipws;
+
+    // 1. Piece placement (from White's perspective). Each rank is described, starting with rank 8 and ending with rank 1;
+    // within each rank, the contents of each square are described from file "a" through file "h". Following the Standard 
+    // Algebraic Notation (SAN), each piece is identified by a single letter taken from the standard English names 
+    // (pawn = "P", knight = "N", bishop = "B", rook = "R", queen = "Q" and king = "K"). White pieces are designated using 
+    // upper-case letters ("PNBRQK") while black pieces use lowercase ("pnbrqk"). Empty squares are noted using digits 1 through 8 
+    // (the number of empty squares), and "/" separates ranks.
+    while((fenStringStream >> fenChar) && !std::isspace(fenChar))
+    {
+        assert((std::isdigit(fenChar)) || (fenChar == '/') || (validPieceChars.find(fenChar) != std::string_view::npos));
+
+        if(std::isdigit(fenChar))
+        {
+            int moveCount { fenChar - '0' };
+            assert(moveCount >= 1 && moveCount <= 8);
+            sq += moveCount;
+        }
+        else if(fenChar == '/')
+        {
+            sq -= 16;
+        }
+        else
+        {
+            size_t pieceIndex = pieceToChar.find(fenChar);
+            assert(pieceIndex != std::string::npos);
+            assert(pieceIndex < NUM_PIECES && pieceIndex >= EMPTY);
+            Piece curPiece = static_cast<Piece>(pieceIndex);
+            this->piecesOnBoard[sq] = curPiece;
+            ++sq;
+        }
+    }
+
+    // 2. Active color. "w" means White moves next, "b" means Black moves next.
+    fenStringStream >> fenChar;
+    assert((fenChar == 'w') || (fenChar == 'b'));
+    this->sideToMove = (fenChar == 'w') ? WHITE : BLACK;
+    fenStringStream >> fenChar;
+    assert(std::isspace(fenChar));
+
+    // 3. Castling availability. If neither side can castle, this is "-". Otherwise, this has one or more letters: 
+    // "K" (White can castle kingside), "Q" (White can castle queenside), "k" (Black can castle kingside), 
+    // and/or "q" (Black can castle queenside). A move that temporarily prevents castling does not negate this notation.
+    while((fenStringStream >> fenChar) && !std::isspace(fenChar))
+    {
+        assert(validCastlingChars.find(fenChar) != std::string_view::npos);
+
+        switch(fenChar)
+        {
+            case 'K':
+                this->castlingRights += WHITE_KING_CASTLE;
+                break;
+            case 'Q':
+                this->castlingRights += WHITE_QUEEN_CASTLE;
+                break;
+            case 'k':
+                this->castlingRights += BLACK_KING_CASTLE;
+                break;
+            case 'q':
+                this->castlingRights += BLACK_QUEEN_CASTLE;
+                break;
+            default:
+                // '-' No castle rights
+                break;
+        }
+    }
+
+    // 4. En passant target square in algebraic notation. If there's no en passant target square, this is "-". 
+    // If a pawn has just made a two-square move, this is the position "behind" the pawn. This is recorded regardless 
+    // of whether there is a pawn in position to make an en passant capture.
+    fenStringStream >> fenChar;
+    if(fenChar == '-')
+    {
+        this->enPassantSquare = NO_SQ;
+    }
+    else
+    {
+        size_t fileIndex = fileToChar.find(fenChar);
+        assert(fileIndex != std::string::npos);
+        assert(fileIndex < NUM_FILES && fileIndex >= FILE_A);
+        File enPassantFile { static_cast<File>(fileIndex) };
+
+        fenStringStream >> fenChar;
+
+        size_t rankIndex = rankToChar.find(fenChar);
+        assert(rankIndex != std::string::npos);
+        assert(rankIndex < NUM_RANKS && rankIndex >= RANK_1);
+        Rank enPassantRank { static_cast<Rank>(rankIndex) };
+
+        int epSq { enPassantRank * 8 + enPassantFile };
+        assert(epSq >= A1 && epSq <= H8);
+        this->enPassantSquare = static_cast<Square>(epSq);
+    }
+    fenStringStream >> fenChar;
+    assert(std::isspace(fenChar));
+
+    // 5. Halfmove clock: The number of halfmoves since the last capture or pawn advance, used for the fifty-move rule.
+    fenStringStream >> std::skipws;
+    fenStringStream >> fiftyMoves;
+    assert(fiftyMoves >= 0 && fiftyMoves <= 50);
+    this->fiftyMovesCount = fiftyMoves;
+
+    // 6. Fullmove number: The number of the full move. It starts at 1, and is incremented after Black's move.
+    fenStringStream >> fullMoves;
+    assert(fullMoves >= 1);
+    this->ply = (fullMoves - 1) * 2 + this->sideToMove;
+
+    // 7. Compute position hash via Zobrist hashing.
+    this->positionIdentity = this->calculatePositionHash();
+}
+
+std::uint64_t Position::calculatePositionHash()
+{
+    std::uint64_t hash { 0 };
+
+    //Handle piece square keys
+    for(int sq { A1 }; sq < NUM_SQUARES; ++sq)
+    {
+        Piece piece = this->piecesOnBoard[sq];
+        hash ^= this->pieceSquareKeys[sq][piece];
+    }
+
+    //Handle side to move
+    if(this->sideToMove == BLACK)
+    {
+        hash ^= this->sideToMoveKey;
+    }
+
+    //Handle castling rights
+    hash ^= this->castlingRightKeys[this->castlingRights];
+
+    //Handle enPassant File
+    if(this->enPassantSquare != NO_SQ)
+    {
+        int file = this->enPassantSquare % 8;
+        hash ^= this->enPassantFileKeys[file];
+    }
+
+    return hash;
+}
+
+void Position::print()
+{
+    // 1. Print 8x8 board to console
+    for(int rank {RANK_8}; rank >= RANK_1; --rank)
+    {
+        for(int file {FILE_A}; file <= FILE_H; ++file)
+        {
+            int sq = rank * 8 + file;
+            Piece curPiece = this->piecesOnBoard[sq];
+            char pieceChar = pieceToChar[curPiece];
+            std::cout << pieceChar << ' ';
+        }
+        std::cout << '\n';
+    }
+
+    // 2. Print other state data to console
+    std::cout << "\nEnPassant Square: " << this->enPassantSquare << '\n';
+    std::cout << "Castling Rights: " << this->castlingRights << '\n';
+    std::cout << "Fifty Moves Count: " << this->fiftyMovesCount << '\n';
+    std::cout << "Ply: " << this->ply << '\n';
+    std::cout << "Position ID: " << this->positionIdentity << '\n';
+    std::cout << "Side to Move: " << this->sideToMove << '\n';
+}

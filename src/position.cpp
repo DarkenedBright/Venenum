@@ -1,9 +1,9 @@
 #include "position.h"
-#include "prng.h"
+#include "prng.h" //PRNG
+#include "types.h" // U64
 
 #include <cassert> //assert()
 #include <cctype> // std::isspace(), std::isdigit()
-#include <cstdint> //std::uint64_t
 #include <ios> // std::skipws, std::noskipws
 #include <iostream> //std::cout
 #include <sstream> //std::istringstream
@@ -146,7 +146,7 @@ Position::Position(const std::string& fenString)
 
         int epSq { enPassantRank * 8 + enPassantFile };
         assert(epSq >= A1 && epSq <= H8);
-        this->enPassantSquare = static_cast<Square>(epSq);
+        this->enPassantSquare = static_cast<LERFSquare>(epSq);
     }
     fenStringStream >> fenChar;
     assert(std::isspace(fenChar));
@@ -166,9 +166,9 @@ Position::Position(const std::string& fenString)
     this->positionIdentity = this->calculatePositionHash();
 }
 
-std::uint64_t Position::calculatePositionHash()
+U64 Position::calculatePositionHash()
 {
-    std::uint64_t hash { 0 };
+    U64 hash { 0 };
 
     //Handle piece square keys
     for(int sq { A1 }; sq < NUM_SQUARES; ++sq)

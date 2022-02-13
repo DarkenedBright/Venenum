@@ -9,7 +9,9 @@ enum Piece
     EMPTY, 
     WHITE_PAWN, WHITE_KNIGHT, WHITE_BISHOP, WHITE_ROOK, WHITE_QUEEN, WHITE_KING, 
     BLACK_PAWN, BLACK_KNIGHT, BLACK_BISHOP, BLACK_ROOK, BLACK_QUEEN, BLACK_KING, 
-    NUM_PIECES
+    NUM_PIECES,
+    WHITE_ALL = 13, BLACK_ALL, ALL_PIECES,
+    NUM_PIECES_ALL
 };
 
 enum Side
@@ -88,6 +90,10 @@ enum RayDirection
     NORTH_WEST = 7
 };
 
+/*
+ * Used for sliding piece attacks. See attack.cpp
+ * and https://www.chessprogramming.org/Magic_Bitboards#Fancy
+ */
 struct FancyMagic
 {
     U64* attackTable {};

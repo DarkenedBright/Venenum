@@ -1,14 +1,14 @@
 #include "position.h"
 #include "prng.h" //PRNG
-#include "types.h" // U64
+#include "types.h" // U64, Piece
 
 #include <cassert> //assert()
 #include <cctype> // std::isspace(), std::isdigit()
 #include <ios> // std::skipws, std::noskipws
 #include <iostream> //std::cout
 #include <sstream> //std::istringstream
-#include <string> //std::string
-#include <string_view> //std::string_view
+#include <string> //std::string, std::string::npos, std::size_t
+#include <string_view> //std::string_view, std::string_view::npos
 
 /* 
  * Use Zobrist Hashing
@@ -51,42 +51,60 @@ Position::Position(const std::string& fenString)
     constexpr std::string_view validPieceChars { "PNBRQKpnbrqk" };
     constexpr std::string_view validCastlingChars { "KQkq-" };
     int sq { A8 };
+    U64 sqBB { 1ULL << sq };
     char fenChar {};
     int fiftyMoves {};
     int fullMoves {};
 
     fenStringStream >> std::noskipws;
 
-    // 1. Piece placement (from White's perspective). Each rank is described, starting with rank 8 and ending with rank 1;
-    // within each rank, the contents of each square are described from file "a" through file "h". Following the Standard 
-    // Algebraic Notation (SAN), each piece is identified by a single letter taken from the standard English names 
-    // (pawn = "P", knight = "N", bishop = "B", rook = "R", queen = "Q" and king = "K"). White pieces are designated using 
-    // upper-case letters ("PNBRQK") while black pieces use lowercase ("pnbrqk"). Empty squares are noted using digits 1 through 8 
-    // (the number of empty squares), and "/" separates ranks.
+    /* 
+     * 1. Piece placement (from White's perspective). Each rank is described, starting with rank 8 and ending with rank 1;
+     * within each rank, the contents of each square are described from file "a" through file "h". Following the Standard 
+     * Algebraic Notation (SAN), each piece is identified by a single letter taken from the standard English names 
+     * (pawn = "P", knight = "N", bishop = "B", rook = "R", queen = "Q" and king = "K"). White pieces are designated using 
+     * upper-case letters ("PNBRQK") while black pieces use lowercase ("pnbrqk"). Empty squares are noted using digits 1 through 8 
+     * (the number of empty squares), and "/" separates ranks.
+     */
     while((fenStringStream >> fenChar) && !std::isspace(fenChar))
     {
         assert((std::isdigit(fenChar)) || (fenChar == '/') || (validPieceChars.find(fenChar) != std::string_view::npos));
 
         if(std::isdigit(fenChar))
         {
+            // Move along rank by given number of empty squares
             int moveCount { fenChar - '0' };
             assert(moveCount >= 1 && moveCount <= 8);
             sq += moveCount;
         }
         else if(fenChar == '/')
         {
+            // Move to the next rank towards white
             sq -= 16;
         }
         else
         {
-            size_t pieceIndex = pieceToChar.find(fenChar);
+            // Get the Piece enum from character in FEN
+            std::size_t pieceIndex = pieceToChar.find(fenChar);
             assert(pieceIndex != std::string::npos);
             assert(pieceIndex < NUM_PIECES && pieceIndex >= EMPTY);
             Piece curPiece = static_cast<Piece>(pieceIndex);
-            this->piecesOnBoard[sq] = curPiece;
+
+            // Update Piece Bitboards
+            this->pieceBitboards[curPiece] |= sqBB;
             ++sq;
         }
+        sqBB = 1ULL << sq;
     }
+    // Update Color Bitboards and Occupancy Bitboard
+    this->pieceBitboards[WHITE_ALL] = ( this->pieceBitboards[WHITE_PAWN] | this->pieceBitboards[WHITE_KNIGHT] | 
+                                        this->pieceBitboards[WHITE_BISHOP] | this->pieceBitboards[WHITE_ROOK] | 
+                                        this->pieceBitboards[WHITE_QUEEN] | this->pieceBitboards[WHITE_KING] );
+    this->pieceBitboards[BLACK_ALL] = ( this->pieceBitboards[BLACK_PAWN] | this->pieceBitboards[BLACK_KNIGHT] | 
+                                        this->pieceBitboards[BLACK_BISHOP] | this->pieceBitboards[BLACK_ROOK] | 
+                                        this->pieceBitboards[BLACK_QUEEN] | this->pieceBitboards[BLACK_KING] );
+    this->pieceBitboards[ALL_PIECES] = ( this->pieceBitboards[WHITE_ALL] | this->pieceBitboards[BLACK_ALL] );
+    this->pieceBitboards[EMPTY] = ~pieceBitboards[ALL_PIECES];
 
     // 2. Active color. "w" means White moves next, "b" means Black moves next.
     fenStringStream >> fenChar;
@@ -95,9 +113,11 @@ Position::Position(const std::string& fenString)
     fenStringStream >> fenChar;
     assert(std::isspace(fenChar));
 
-    // 3. Castling availability. If neither side can castle, this is "-". Otherwise, this has one or more letters: 
-    // "K" (White can castle kingside), "Q" (White can castle queenside), "k" (Black can castle kingside), 
-    // and/or "q" (Black can castle queenside). A move that temporarily prevents castling does not negate this notation.
+    /* 
+     * 3. Castling availability. If neither side can castle, this is "-". Otherwise, this has one or more letters: 
+     * "K" (White can castle kingside), "Q" (White can castle queenside), "k" (Black can castle kingside), 
+     * and/or "q" (Black can castle queenside). A move that temporarily prevents castling does not negate this notation.
+     */
     while((fenStringStream >> fenChar) && !std::isspace(fenChar))
     {
         assert(validCastlingChars.find(fenChar) != std::string_view::npos);
@@ -122,9 +142,11 @@ Position::Position(const std::string& fenString)
         }
     }
 
-    // 4. En passant target square in algebraic notation. If there's no en passant target square, this is "-". 
-    // If a pawn has just made a two-square move, this is the position "behind" the pawn. This is recorded regardless 
-    // of whether there is a pawn in position to make an en passant capture.
+    /* 
+     * 4. En passant target square in algebraic notation. If there's no en passant target square, this is "-". 
+     * If a pawn has just made a two-square move, this is the position "behind" the pawn. This is recorded regardless 
+     * of whether there is a pawn in position to make an en passant capture.
+     */
     fenStringStream >> fenChar;
     if(fenChar == '-')
     {
@@ -170,11 +192,20 @@ U64 Position::calculatePositionHash()
 {
     U64 hash { 0 };
 
-    //Handle piece square keys
+    //Handle piece square keys including empty
+    U64 sqBB {};
     for(int sq { A1 }; sq < NUM_SQUARES; ++sq)
     {
-        Piece piece = this->piecesOnBoard[sq];
-        hash ^= this->pieceSquareKeys[sq][piece];
+        sqBB = 1ULL << sq;
+        // Loop through piece types
+        for(int pieceType { EMPTY }; pieceType < NUM_PIECES; ++pieceType)
+        {
+            if(this->pieceBitboards[pieceType] & sqBB)
+            {
+                hash ^= this->pieceSquareKeys[sq][pieceType];
+                break;
+            }
+        }
     }
 
     //Handle side to move
@@ -199,14 +230,23 @@ U64 Position::calculatePositionHash()
 void Position::print()
 {
     // 1. Print 8x8 board to console
+    U64 sqBB {};
+    char pieceChar {};
     for(int rank {RANK_8}; rank >= RANK_1; --rank)
     {
         for(int file {FILE_A}; file <= FILE_H; ++file)
         {
-            int sq = rank * 8 + file;
-            Piece curPiece = this->piecesOnBoard[sq];
-            char pieceChar = pieceToChar[curPiece];
-            std::cout << pieceChar << ' ';
+            sqBB = 1ULL << (rank * 8 + file);
+
+            for(std::size_t pieceType { EMPTY }; pieceType < NUM_PIECES; ++pieceType)
+            {
+                if(this->pieceBitboards[pieceType] & sqBB)
+                {
+                    pieceChar = pieceToChar[pieceType];
+                    std::cout << pieceChar << ' ';
+                    break;
+                }
+            }
         }
         std::cout << '\n';
     }

@@ -14,15 +14,15 @@ inline const std::string STANDARD_START_FEN { "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPP
 class Position
 {
     private:
-        //Static Zobrist keys, initialized with initPositionZobristKeys()
+        // Static Zobrist keys, initialized with initPositionZobristKeys()
         inline static constexpr U64 POSITION_ZOBRIST_SEED { 0xFD2D8157399E58D4 };
         inline static U64 pieceSquareKeys[NUM_SQUARES][NUM_PIECES];
         inline static U64 sideToMoveKey;
         inline static U64 castlingRightKeys[NUM_CASTLE_STATES];
         inline static U64 enPassantFileKeys[NUM_FILES];
 
-        //Position member variables
-        Piece piecesOnBoard[NUM_SQUARES] {};
+        // Position member variables
+        U64 pieceBitboards[NUM_PIECES_ALL] {};
         LERFSquare enPassantSquare {};
         int castlingRights {};
         int fiftyMovesCount {};

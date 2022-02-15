@@ -8,8 +8,8 @@ namespace Attack
     void initBishopRookAttacks();
 }
 
-inline FancyMagic ROOK_ATTACKS[NUM_SQUARES] {};
-inline FancyMagic BISHOP_ATTACKS[NUM_SQUARES] {};
+inline FancyMagic ROOK_FANCY_MAGICS[NUM_SQUARES] {};
+inline FancyMagic BISHOP_FANCY_MAGICS[NUM_SQUARES] {};
 
 /*
  * Pawn Attack Example: White Pawn attack from E2
@@ -136,7 +136,7 @@ inline constexpr U64 BISHOP_OCCUPANCY[NUM_SQUARES] {
  * creating an index to look up pre-computed attacks for sliding
  * pieces.
  */
-inline constexpr U64 BISHOP_MAGICS[64] = {
+inline constexpr U64 BISHOP_MAGIC_NUMBERS[64] = {
     0x0006EFF5367FF600ULL, 0x00345835BA77FF2BULL, 0x00145F68A3F5DAB6ULL, 0x003A1863FB56F21DULL, 0x0012EB6BFE9D93CDULL, 0x000D82827F3420D6ULL, 0x00074BCD9C7FEC97ULL, 0x000034FE99F9FFFFULL, 
     0x0000746F8D6717F6ULL, 0x00003ACB32E1A3F7ULL, 0x0000185DAF1FFB8AULL, 0x00003A1867F17067ULL, 0x0000038EE0CCF92EULL, 0x000002A2B7FF926EULL, 0x000006C9AA93FF14ULL, 0x00000399B5E5BF87ULL, 
     0x00400F342C951FFCULL, 0x0020230579ED8FF0ULL, 0x007B008A0077DBFDULL, 0x001D00010C13FD46ULL, 0x00040022031C1FFBULL, 0x000FA00FD1CBFF79ULL, 0x000400A4BC9AFFDFULL, 0x000200085E9CFFDAULL,
@@ -163,6 +163,19 @@ inline constexpr int BISHOP_SHIFT[64] = {
     60, 60, 59, 59, 59, 59, 60, 60,
     59, 60, 59, 59, 59, 59, 60, 59
 };
+
+/*
+ * Based on bit shift amounts given in BISHOP_SHIFT,
+ * use 0x12C0 as the total number of pre-calculated bishop
+ * attack bitboards needed to be stored.
+ * 
+ * 4x 9-bit = 4 x 2^9 = 4 x 512 = 2048
+ * 12x 7-bit = 12 x 2^7 = 12 x 128 = 1536
+ * 28x 5-bit = 28 x 2^5 = 28 x 32 = 896
+ * 20x 4-bit = 20 x 2^4 = 20 x 16 = 320
+ * Total = 4800 = 0x12C0
+ */
+inline U64 BISHOP_ATTACKS_TABLE[0x12C0] {};
 
 /*
  * Occupancy is used to denote relevant squares that could potentially
@@ -202,7 +215,7 @@ inline constexpr U64 ROOK_OCCUPANCY[NUM_SQUARES] {
  * creating an index to look up pre-computed attacks for sliding
  * pieces.
  */
-inline constexpr U64 ROOK_MAGICS[64] = {
+inline constexpr U64 ROOK_MAGIC_NUMBERS[64] = {
     0x19A80065FF2BFFFFULL, 0x3FD80075FFEBFFFFULL, 0x4010000DF6F6FFFEULL, 0x0050001FAFFAFFFFULL, 0x0050028004FFFFB0ULL, 0x7F600280089FFFF1ULL, 0x7F5000B0029FFFFCULL, 0x5B58004848A7FFFAULL, 
     0x002A90005547FFFFULL, 0x000050007F13FFFFULL, 0x007FA0006013FFFFULL, 0x006A9005656FFFFFULL, 0x007F600F600AFFFFULL, 0x007EC007E6BFFFE2ULL, 0x007EC003EEBFFFFBULL, 0x0071D002382FFFDAULL, 
     0x009F803000E7FFFAULL, 0x00680030008BFFFFULL, 0x00606060004F3FFCULL, 0x001A00600BFF9FFDULL, 0x000D006005FF9FFFULL, 0x0001806003005FFFULL, 0x00000300040BFFFAULL, 0x000192500065FFEAULL,
@@ -229,5 +242,18 @@ inline constexpr int ROOK_SHIFT[NUM_SQUARES] = {
     54, 55, 55, 55, 55, 55, 54, 54,
     53, 54, 54, 54, 54, 53, 54, 53
 };
+
+/*
+ * Based on bit shift amounts given in ROOK_SHIFT,
+ * use 0x16200 as the total number of pre-calculated rook
+ * attack bitboards needed to be stored.
+ * 
+ * 5x 9-bit = 5 x 2^9 = 5 x 512 = 2560
+ * 36x 10-bit = 36 x 2^10 = 36 x 1024 = 36864
+ * 21x 11-bit = 21 x 2^11 = 21 x 2048 = 43008
+ * 2x 12-bit = 2 x 2^12 = 2 x 4096 = 8192
+ * Total = 90624 = 0x16200
+ */
+inline U64 ROOK_ATTACKS_TABLE[0x16200] {};
 
 #endif

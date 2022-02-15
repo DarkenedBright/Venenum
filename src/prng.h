@@ -13,7 +13,7 @@ class PRNG
     private:
         std::uint64_t xorShiftNum {};
     public:
-        PRNG(std::uint64_t seed) : xorShiftNum{ seed }{}
+        explicit PRNG(std::uint64_t seed) : xorShiftNum{ seed }{}
         std::uint64_t xorShiftRand() {
             xorShiftNum ^= xorShiftNum >> 12;
             xorShiftNum ^= xorShiftNum << 25;

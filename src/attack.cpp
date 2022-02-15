@@ -60,11 +60,24 @@ void initRookAttacks()
 {
     for(int sq { A1 }; sq < NUM_SQUARES; ++sq)
     {
-        FancyMagic curMagic = ROOK_ATTACKS[sq];
+        FancyMagic curMagic = ROOK_FANCY_MAGICS[sq];
         curMagic.shift = ROOK_SHIFT[sq];
-        curMagic.magicNumber = ROOK_MAGICS[sq];
-        curMagic.attackTable = new U64[1ULL << (64 - curMagic.shift)] {};
+        curMagic.magicNumber = ROOK_MAGIC_NUMBERS[sq];
         curMagic.occupancyMask = ROOK_OCCUPANCY[sq];
+
+        // Calculate pointer address into ROOK_ATTACKS_TABLE for sq
+        if(sq == A1)
+        {
+            curMagic.attackTablePointer = ROOK_ATTACKS_TABLE;
+        }
+        else
+        {
+            U64* previousSqPointer = ROOK_FANCY_MAGICS[sq - 1].attackTablePointer;
+            int fancyBitsUsed = 64 - ROOK_SHIFT[sq - 1];
+            U64 pointerOffset = 1ULL << fancyBitsUsed;
+            curMagic.attackTablePointer = previousSqPointer + pointerOffset;
+        }
+        
 
         U64 currentOccupancy { 0ULL };
         do
@@ -72,7 +85,7 @@ void initRookAttacks()
             U64 curIndex { (currentOccupancy * curMagic.magicNumber) >> curMagic.shift };
             U64 curAttack { calculateRookAttacks(sq, currentOccupancy) };
 
-            curMagic.attackTable[curIndex] = curAttack;
+            curMagic.attackTablePointer[curIndex] = curAttack;
 
             currentOccupancy = (currentOccupancy - curMagic.occupancyMask) & curMagic.occupancyMask;
         } while (currentOccupancy);
@@ -120,11 +133,23 @@ void initBishopAttacks()
 {
     for(int sq { A1 }; sq < NUM_SQUARES; ++sq)
     {
-        FancyMagic curMagic = BISHOP_ATTACKS[sq];
+        FancyMagic curMagic = BISHOP_FANCY_MAGICS[sq];
         curMagic.shift = BISHOP_SHIFT[sq];
-        curMagic.magicNumber = BISHOP_MAGICS[sq];
-        curMagic.attackTable = new U64[1ULL << (64 - curMagic.shift)] {};
+        curMagic.magicNumber = BISHOP_MAGIC_NUMBERS[sq];
         curMagic.occupancyMask = BISHOP_OCCUPANCY[sq];
+
+        // Calculate pointer address into BISHOP_ATTACKS_TABLE for sq
+        if(sq == A1)
+        {
+            curMagic.attackTablePointer = BISHOP_ATTACKS_TABLE;
+        }
+        else
+        {
+            U64* previousSqPointer = BISHOP_FANCY_MAGICS[sq - 1].attackTablePointer;
+            int fancyBitsUsed = 64 - BISHOP_SHIFT[sq - 1];
+            U64 pointerOffset = 1ULL << fancyBitsUsed;
+            curMagic.attackTablePointer = previousSqPointer + pointerOffset;
+        }
 
         U64 currentOccupancy { 0ULL };
         do
@@ -132,7 +157,7 @@ void initBishopAttacks()
             U64 curIndex { (currentOccupancy * curMagic.magicNumber) >> curMagic.shift };
             U64 curAttack { calculateBishopAttacks(sq, currentOccupancy) };
 
-            curMagic.attackTable[curIndex] = curAttack;
+            curMagic.attackTablePointer[curIndex] = curAttack;
 
             currentOccupancy = (currentOccupancy - curMagic.occupancyMask) & curMagic.occupancyMask;
         } while (currentOccupancy);

@@ -96,7 +96,7 @@ enum RayDirection
  */
 struct FancyMagic
 {
-    U64* attackTable {};
+    U64* attackTablePointer {};
     U64 occupancyMask {};
     U64 magicNumber {};
     int shift {};

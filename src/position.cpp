@@ -87,7 +87,7 @@ Position::Position(const std::string& fenString)
             // Get the Piece enum from character in FEN
             std::size_t pieceIndex = pieceToChar.find(fenChar);
             assert(pieceIndex != std::string::npos);
-            assert(pieceIndex < NUM_PIECES && pieceIndex >= EMPTY);
+            assert(pieceIndex < NUM_PIECES);
             Piece curPiece = static_cast<Piece>(pieceIndex);
 
             // Update Piece Bitboards
@@ -156,14 +156,14 @@ Position::Position(const std::string& fenString)
     {
         size_t fileIndex = fileToChar.find(fenChar);
         assert(fileIndex != std::string::npos);
-        assert(fileIndex < NUM_FILES && fileIndex >= FILE_A);
+        assert(fileIndex < NUM_FILES);
         File enPassantFile { static_cast<File>(fileIndex) };
 
         fenStringStream >> fenChar;
 
         size_t rankIndex = rankToChar.find(fenChar);
         assert(rankIndex != std::string::npos);
-        assert(rankIndex < NUM_RANKS && rankIndex >= RANK_1);
+        assert(rankIndex < NUM_RANKS);
         Rank enPassantRank { static_cast<Rank>(rankIndex) };
 
         int epSq { enPassantRank * 8 + enPassantFile };

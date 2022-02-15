@@ -1,5 +1,6 @@
 #include "attack.h"
-#include "types.h" //U64
+#include "bitboard.h" // squareToBitboard()
+#include "types.h" // U64, File, Rank, LERFSquare, RayDirection, FancyMagic
 
 /*
  * Return valid if a slide move of a bishop or rook
@@ -8,12 +9,12 @@
  */
 bool slideIsValid(int from, int to)
 {
-    int fromFile { from % NUM_FILES };
-    int toFile { to % NUM_FILES };
+    File fromFile { from % NUM_FILES };
+    File toFile { to % NUM_FILES };
     int fileDistance { fromFile - toFile };
     
-    int fromRank { from / NUM_RANKS };
-    int toRank { to / NUM_RANKS };
+    Rank fromRank { from / NUM_RANKS };
+    Rank toRank { to / NUM_RANKS };
     int rankDistance { fromRank - toRank };
 
     return to >= A1 && to < NUM_SQUARES && fileDistance > -2 && fileDistance < 2 && rankDistance > -2 && rankDistance < 2;
@@ -33,7 +34,7 @@ U64 calculateRookAttacks(int sq, U64 occupancy)
     {
         int curSq { sq + dir };
         int prevSq { sq };
-        U64 bbSq { 1ULL << curSq };
+        U64 bbSq { squareToBitboard(sq) };
         while(slideIsValid(prevSq, curSq))
         {
             attack |= bbSq;
@@ -42,7 +43,7 @@ U64 calculateRookAttacks(int sq, U64 occupancy)
 
             prevSq = curSq;
             curSq += dir;
-            bbSq = (1ULL << curSq);
+            bbSq = squareToBitboard(curSq);
         }
     }
 
@@ -106,7 +107,7 @@ U64 calculateBishopAttacks(int sq, U64 occupancy)
     {
         int curSq { sq + dir };
         int prevSq { sq };
-        U64 bbSq { 1ULL << curSq };
+        U64 bbSq { squareToBitboard(curSq) };
         while(slideIsValid(prevSq, curSq))
         {
             attack |= bbSq;
@@ -115,7 +116,7 @@ U64 calculateBishopAttacks(int sq, U64 occupancy)
 
             prevSq = curSq;
             curSq += dir;
-            bbSq = (1ULL << curSq);
+            bbSq = squareToBitboard(curSq);
         }
     }
 

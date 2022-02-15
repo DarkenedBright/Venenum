@@ -60,7 +60,7 @@ void initRookAttacks()
 {
     for(int sq { A1 }; sq < NUM_SQUARES; ++sq)
     {
-        FancyMagic curMagic = ROOK_FANCY_MAGICS[sq];
+        FancyMagic& curMagic = ROOK_FANCY_MAGICS[sq];
         curMagic.shift = ROOK_SHIFT[sq];
         curMagic.magicNumber = ROOK_MAGIC_NUMBERS[sq];
         curMagic.occupancyMask = ROOK_OCCUPANCY[sq];
@@ -74,7 +74,7 @@ void initRookAttacks()
         {
             U64* previousSqPointer = ROOK_FANCY_MAGICS[sq - 1].attackTablePointer;
             int fancyBitsUsed = 64 - ROOK_SHIFT[sq - 1];
-            U64 pointerOffset = 1ULL << fancyBitsUsed;
+            int pointerOffset = 1ULL << fancyBitsUsed;
             curMagic.attackTablePointer = previousSqPointer + pointerOffset;
         }
         
@@ -133,7 +133,7 @@ void initBishopAttacks()
 {
     for(int sq { A1 }; sq < NUM_SQUARES; ++sq)
     {
-        FancyMagic curMagic = BISHOP_FANCY_MAGICS[sq];
+        FancyMagic& curMagic = BISHOP_FANCY_MAGICS[sq];
         curMagic.shift = BISHOP_SHIFT[sq];
         curMagic.magicNumber = BISHOP_MAGIC_NUMBERS[sq];
         curMagic.occupancyMask = BISHOP_OCCUPANCY[sq];
@@ -147,7 +147,7 @@ void initBishopAttacks()
         {
             U64* previousSqPointer = BISHOP_FANCY_MAGICS[sq - 1].attackTablePointer;
             int fancyBitsUsed = 64 - BISHOP_SHIFT[sq - 1];
-            U64 pointerOffset = 1ULL << fancyBitsUsed;
+            int pointerOffset = 1ULL << fancyBitsUsed;
             curMagic.attackTablePointer = previousSqPointer + pointerOffset;
         }
 

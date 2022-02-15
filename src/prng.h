@@ -1,7 +1,7 @@
 #ifndef PRNG_H
 #define PRNG_H
 
-#include <cstdint> //std::uint64_t
+#include "types.h" // U64
 
 /* 
  * Use xorshift pseudorandom number generator
@@ -11,10 +11,10 @@
 class PRNG
 {
     private:
-        std::uint64_t xorShiftNum {};
+        U64 xorShiftNum {};
     public:
-        explicit PRNG(std::uint64_t seed) : xorShiftNum{ seed }{}
-        std::uint64_t xorShiftRand() {
+        explicit PRNG(U64 seed) : xorShiftNum{ seed }{}
+        U64 xorShiftRand() {
             xorShiftNum ^= xorShiftNum >> 12;
             xorShiftNum ^= xorShiftNum << 25;
             xorShiftNum ^= xorShiftNum >> 27;

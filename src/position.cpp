@@ -19,7 +19,7 @@ void Position::initZobristPositionKeys()
 {
     PRNG randGen { POSITION_ZOBRIST_SEED };
 
-    // uint64_t pieceSquareKeys[NUM_SQUARES][NUM_PIECES];
+    // U64 pieceSquareKeys[NUM_SQUARES][NUM_PIECES];
     for(int sq { A1 }; sq < NUM_SQUARES; ++sq)
     {
         for(int piece { EMPTY }; piece < NUM_PIECES; ++piece)
@@ -28,16 +28,16 @@ void Position::initZobristPositionKeys()
         }
     }
 
-    // uint64_t sideToMoveKey;
+    // U64 sideToMoveKey;
     sideToMoveKey = randGen.xorShiftRand();
 
-    // uint64_t castlingRightKeys[NUM_CASTLE_STATES];
+    // U64 castlingRightKeys[NUM_CASTLE_STATES];
     for(int castle { 0 }; castle < NUM_CASTLE_STATES; ++castle)
     {
         castlingRightKeys[castle] = randGen.xorShiftRand();
     }
 
-    // uint64_t enPassantFileKeys[NUM_FILES];
+    // U64 enPassantFileKeys[NUM_FILES];
     for(int file { FILE_A }; file < NUM_FILES; ++file)
     {
         enPassantFileKeys[file] = randGen.xorShiftRand();

@@ -89,10 +89,9 @@ Position::Position(const std::string& fenString)
             std::size_t pieceIndex = pieceToChar.find(fenChar);
             assert(pieceIndex != std::string::npos);
             assert(pieceIndex < NUM_PIECES);
-            Piece curPiece { pieceIndex };
 
             // Update Piece Bitboards
-            this->pieceBitboards[curPiece] |= sqBB;
+            this->pieceBitboards[pieceIndex] |= sqBB;
             ++sq;
         }
         sqBB = squareToBitboard(sq);
@@ -155,20 +154,18 @@ Position::Position(const std::string& fenString)
     }
     else
     {
-        size_t fileIndex = fileToChar.find(fenChar);
+        std::size_t fileIndex = fileToChar.find(fenChar);
         assert(fileIndex != std::string::npos);
         assert(fileIndex < NUM_FILES);
-        File enPassantFile { fileIndex };
 
         fenStringStream >> fenChar;
 
-        size_t rankIndex = rankToChar.find(fenChar);
+        std::size_t rankIndex = rankToChar.find(fenChar);
         assert(rankIndex != std::string::npos);
         assert(rankIndex < NUM_RANKS);
-        Rank enPassantRank { rankIndex };
 
-        int epSq { enPassantRank * 8 + enPassantFile };
-        assert(epSq >= A1 && epSq <= H8);
+        std::size_t epSq { rankIndex * 8 + fileIndex };
+        assert(epSq <= H8);
         this->enPassantSquare = static_cast<LERFSquare>(epSq);
     }
     fenStringStream >> fenChar;

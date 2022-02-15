@@ -4,7 +4,7 @@
 //C++ Standard guarantees ULL to be AT LEAST 64 bits
 using U64 = unsigned long long;
 
-enum Piece
+enum Piece : int
 {
     EMPTY, 
     WHITE_PAWN, WHITE_KNIGHT, WHITE_BISHOP, WHITE_ROOK, WHITE_QUEEN, WHITE_KING, 
@@ -14,24 +14,24 @@ enum Piece
     NUM_PIECES_ALL
 };
 
-enum Side
+enum Side : int
 {
     WHITE, BLACK, NUM_SIDES
 };
 
-enum Castle
+enum Castle : int
 {
     WHITE_KING_CASTLE = 1, WHITE_QUEEN_CASTLE = 2, 
     BLACK_KING_CASTLE = 4, BLACK_QUEEN_CASTLE = 8,
     NUM_CASTLE_STATES = 16
 };
 
-enum Rank
+enum Rank : int
 {
     RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7, RANK_8, NUM_RANKS
 };
 
-enum File
+enum File : int
 {
     FILE_A, FILE_B, FILE_C, FILE_D, FILE_E, FILE_F, FILE_G, FILE_H, NUM_FILES
 };
@@ -52,7 +52,7 @@ enum File
  * 
  *     A  B  C  D  E  F  G  H
  */
-enum LERFSquare
+enum LERFSquare : int
 {
     A1, B1, C1, D1, E1, F1, G1, H1,
     A2, B2, C2, D2, E2, F2, G2, H2,
@@ -78,7 +78,7 @@ enum LERFSquare
  * soWe         sout         soEa
  * southwest    south   southeast
  */
-enum RayDirection
+enum RayDirection : int
 {
     NORTH = 8,
     NORTH_EAST = 9,

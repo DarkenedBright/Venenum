@@ -1,9 +1,7 @@
 #include "uci.h"
 #include "position.h"
 
-#include <ios> //std::streamsize
-#include <iostream> //cin, cout
-#include <limits> //std::numeric_limits<T>::max
+#include <iostream> // std::cin, std::cout
 #include <string> //std::string
 #include <sstream> //std::istringstream
 

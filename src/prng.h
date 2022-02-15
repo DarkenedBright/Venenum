@@ -18,7 +18,7 @@ class PRNG
             xorShiftNum ^= xorShiftNum >> 12;
             xorShiftNum ^= xorShiftNum << 25;
             xorShiftNum ^= xorShiftNum >> 27;
-            return xorShiftNum * 2685821657736338717;
+            return xorShiftNum * 2685821657736338717ULL;
         }
 };
 #endif

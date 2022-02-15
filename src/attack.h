@@ -1,7 +1,7 @@
 #ifndef ATTACK_H
 #define ATTACK_H
 
-#include "types.h" //U64, Side, LERFSquare, ????
+#include "types.h" //U64, NUM_SIDES, NUM_SQUARES, FancyMagic
 
 namespace Attack
 {

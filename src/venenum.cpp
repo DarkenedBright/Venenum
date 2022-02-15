@@ -1,5 +1,5 @@
-#include "attack.h" //Attack::init()
-#include "position.h" //Position::init()
+#include "attack.h" //Attack::initBishopRookAttacks()
+#include "position.h" //Position::initZobristPositionKeys(), STANDARD_START_FEN
 #include "uci.h" //readConsole()
 
 #include <iostream> //std::cout

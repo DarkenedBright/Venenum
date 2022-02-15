@@ -1,14 +1,15 @@
+#include "bitboard.h" // squareToBitboard()
 #include "position.h"
-#include "prng.h" //PRNG
-#include "types.h" // U64, Piece
+#include "prng.h" // PRNG
+#include "types.h" // U64, Piece, LERFSquare, File, Rank, Side, Castle
 
 #include <cassert> //assert()
 #include <cctype> // std::isspace(), std::isdigit()
 #include <ios> // std::skipws, std::noskipws
-#include <iostream> //std::cout
-#include <sstream> //std::istringstream
-#include <string> //std::string, std::string::npos, std::size_t
-#include <string_view> //std::string_view, std::string_view::npos
+#include <iostream> // std::cout
+#include <sstream> // std::istringstream
+#include <string> // std::string, std::string::npos, std::size_t
+#include <string_view> // std::string_view, std::string_view::npos
 
 /* 
  * Use Zobrist Hashing
@@ -51,7 +52,7 @@ Position::Position(const std::string& fenString)
     constexpr std::string_view validPieceChars { "PNBRQKpnbrqk" };
     constexpr std::string_view validCastlingChars { "KQkq-" };
     int sq { A8 };
-    U64 sqBB { 1ULL << sq };
+    U64 sqBB { squareToBitboard(sq) };
     char fenChar {};
     int fiftyMoves {};
     int fullMoves {};
@@ -88,13 +89,13 @@ Position::Position(const std::string& fenString)
             std::size_t pieceIndex = pieceToChar.find(fenChar);
             assert(pieceIndex != std::string::npos);
             assert(pieceIndex < NUM_PIECES);
-            Piece curPiece = static_cast<Piece>(pieceIndex);
+            Piece curPiece { pieceIndex };
 
             // Update Piece Bitboards
             this->pieceBitboards[curPiece] |= sqBB;
             ++sq;
         }
-        sqBB = 1ULL << sq;
+        sqBB = squareToBitboard(sq);
     }
     // Update Color Bitboards and Occupancy Bitboard
     this->pieceBitboards[WHITE_ALL] = ( this->pieceBitboards[WHITE_PAWN] | this->pieceBitboards[WHITE_KNIGHT] | 
@@ -157,14 +158,14 @@ Position::Position(const std::string& fenString)
         size_t fileIndex = fileToChar.find(fenChar);
         assert(fileIndex != std::string::npos);
         assert(fileIndex < NUM_FILES);
-        File enPassantFile { static_cast<File>(fileIndex) };
+        File enPassantFile { fileIndex };
 
         fenStringStream >> fenChar;
 
         size_t rankIndex = rankToChar.find(fenChar);
         assert(rankIndex != std::string::npos);
         assert(rankIndex < NUM_RANKS);
-        Rank enPassantRank { static_cast<Rank>(rankIndex) };
+        Rank enPassantRank { rankIndex };
 
         int epSq { enPassantRank * 8 + enPassantFile };
         assert(epSq >= A1 && epSq <= H8);
@@ -196,7 +197,7 @@ U64 Position::calculatePositionHash()
     U64 sqBB {};
     for(int sq { A1 }; sq < NUM_SQUARES; ++sq)
     {
-        sqBB = 1ULL << sq;
+        sqBB = squareToBitboard(sq);
         // Loop through piece types
         for(int pieceType { EMPTY }; pieceType < NUM_PIECES; ++pieceType)
         {
@@ -236,7 +237,7 @@ void Position::print()
     {
         for(int file {FILE_A}; file <= FILE_H; ++file)
         {
-            sqBB = 1ULL << (rank * 8 + file);
+            sqBB = squareToBitboard(rank * 8 + file);
 
             for(std::size_t pieceType { EMPTY }; pieceType < NUM_PIECES; ++pieceType)
             {

@@ -31,7 +31,7 @@ class Position
         Side sideToMove {};
     public:
         static void initZobristPositionKeys();
-        Position(const std::string& fenString);
+        explicit Position(const std::string& fenString);
         U64 calculatePositionHash();
         void print();
 };

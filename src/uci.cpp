@@ -138,36 +138,36 @@ void commandUCINewGame()
  */
 void commandPosition(std::istringstream& uciStringStream)
 {
-    std::string uciPart {};
-    std::string fenPosition {};
-    uciStringStream >> uciPart;
+    // std::string uciPart {};
+    // std::string fenPosition {};
+    // uciStringStream >> uciPart;
 
-    if(uciPart == "startpos")
-    {
-        fenPosition = STANDARD_START_FEN;
-        uciStringStream >> uciPart;
-    }
-    else if (uciPart == "fen")
-    {
-        while(uciStringStream >> uciPart && uciPart != "moves")
-        {
-            fenPosition += uciPart + ' ';
-        }
-    }
-    else
-    {
-        return;
-    }
+    // if(uciPart == "startpos")
+    // {
+    //     fenPosition = STANDARD_START_FEN;
+    //     uciStringStream >> uciPart;
+    // }
+    // else if (uciPart == "fen")
+    // {
+    //     while(uciStringStream >> uciPart && uciPart != "moves")
+    //     {
+    //         fenPosition += uciPart + ' ';
+    //     }
+    // }
+    // else
+    // {
+    //     return;
+    // }
 
-    //TODO Set Position Class? to fen position
+    // //TODO Set Position Class? to fen position
 
-    if(uciPart != "moves")
-        return;
+    // if(uciPart != "moves")
+    //     return;
     
-    while(uciStringStream >> uciPart)
-    {
-        //TODO Apply move to position in order
-    }
+    // while(uciStringStream >> uciPart)
+    // {
+    //     //TODO Apply move to position in order
+    // }
 }
 
 /*

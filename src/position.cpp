@@ -3,11 +3,11 @@
 #include "prng.h" // PRNG
 #include "types.h" // U64, Piece, LERFSquare, File, Rank, Side, Castle
 
-#include <cassert> //assert()
 #include <cctype> // std::isspace(), std::isdigit()
 #include <ios> // std::skipws, std::noskipws
 #include <iostream> // std::cout
 #include <sstream> // std::istringstream
+#include <stdexcept> // std::invalid_argument
 #include <string> // std::string, std::string::npos, std::size_t
 #include <string_view> // std::string_view, std::string_view::npos
 
@@ -69,13 +69,15 @@ Position::Position(const std::string& fenString)
      */
     while((fenStringStream >> fenChar) && !std::isspace(fenChar))
     {
-        assert((std::isdigit(fenChar)) || (fenChar == '/') || (validPieceChars.find(fenChar) != std::string_view::npos));
+        if(!std::isdigit(fenChar) && fenChar != '/' && validPieceChars.find(fenChar) == std::string_view::npos)
+            throw std::invalid_argument("Invalid FEN piece placement character: '" + std::string(1, fenChar) + "'");
 
         if(std::isdigit(fenChar))
         {
             // Move along rank by given number of empty squares
             int moveCount { fenChar - '0' };
-            assert(moveCount >= 1 && moveCount <= 8);
+            if(moveCount < 1 || moveCount > 8)
+                throw std::invalid_argument("Invalid FEN piece placement: empty-square count out of range: " + std::to_string(moveCount));
             sq += moveCount;
         }
         else if(fenChar == '/')
@@ -87,8 +89,8 @@ Position::Position(const std::string& fenString)
         {
             // Get the Piece enum from character in FEN
             std::size_t pieceIndex = pieceToChar.find(fenChar);
-            assert(pieceIndex != std::string::npos);
-            assert(pieceIndex < NUM_PIECES);
+            if(pieceIndex == std::string::npos || pieceIndex >= NUM_PIECES)
+                throw std::invalid_argument("Invalid FEN piece character: '" + std::string(1, fenChar) + "'");
 
             // Update Piece Bitboards
             this->pieceBitboards[pieceIndex] |= sqBB;
@@ -108,10 +110,12 @@ Position::Position(const std::string& fenString)
 
     // 2. Active color. "w" means White moves next, "b" means Black moves next.
     fenStringStream >> fenChar;
-    assert((fenChar == 'w') || (fenChar == 'b'));
+    if(fenChar != 'w' && fenChar != 'b')
+        throw std::invalid_argument("Invalid FEN active color character: '" + std::string(1, fenChar) + "', expected 'w' or 'b'");
     this->sideToMove = (fenChar == 'w') ? WHITE : BLACK;
     fenStringStream >> fenChar;
-    assert(std::isspace(fenChar));
+    if(!std::isspace(fenChar))
+        throw std::invalid_argument("Invalid FEN: expected space after active color field");
 
     /* 
      * 3. Castling availability. If neither side can castle, this is "-". Otherwise, this has one or more letters: 
@@ -120,21 +124,22 @@ Position::Position(const std::string& fenString)
      */
     while((fenStringStream >> fenChar) && !std::isspace(fenChar))
     {
-        assert(validCastlingChars.find(fenChar) != std::string_view::npos);
+        if(validCastlingChars.find(fenChar) == std::string_view::npos)
+            throw std::invalid_argument("Invalid FEN castling availability character: '" + std::string(1, fenChar) + "'");
 
         switch(fenChar)
         {
             case 'K':
-                this->castlingRights += WHITE_KING_CASTLE;
+                this->castlingRights |= WHITE_KING_CASTLE;
                 break;
             case 'Q':
-                this->castlingRights += WHITE_QUEEN_CASTLE;
+                this->castlingRights |= WHITE_QUEEN_CASTLE;
                 break;
             case 'k':
-                this->castlingRights += BLACK_KING_CASTLE;
+                this->castlingRights |= BLACK_KING_CASTLE;
                 break;
             case 'q':
-                this->castlingRights += BLACK_QUEEN_CASTLE;
+                this->castlingRights |= BLACK_QUEEN_CASTLE;
                 break;
             default:
                 // '-' No castle rights
@@ -155,38 +160,42 @@ Position::Position(const std::string& fenString)
     else
     {
         std::size_t fileIndex = fileToChar.find(fenChar);
-        assert(fileIndex != std::string::npos);
-        assert(fileIndex < NUM_FILES);
+        if(fileIndex == std::string::npos || fileIndex >= NUM_FILES)
+            throw std::invalid_argument("Invalid FEN en passant file character: '" + std::string(1, fenChar) + "'");
 
         fenStringStream >> fenChar;
 
         std::size_t rankIndex = rankToChar.find(fenChar);
-        assert(rankIndex != std::string::npos);
-        assert(rankIndex < NUM_RANKS);
+        if(rankIndex == std::string::npos || rankIndex >= NUM_RANKS)
+            throw std::invalid_argument("Invalid FEN en passant rank character: '" + std::string(1, fenChar) + "'");
 
         std::size_t epSq { rankIndex * 8 + fileIndex };
-        assert(epSq <= H8);
+        if(epSq > H8)
+            throw std::invalid_argument("Invalid FEN en passant square");
         this->enPassantSquare = static_cast<LERFSquare>(epSq);
     }
     fenStringStream >> fenChar;
-    assert(std::isspace(fenChar));
+    if(!std::isspace(fenChar))
+        throw std::invalid_argument("Invalid FEN: expected space after en passant field");
 
     // 5. Halfmove clock: The number of halfmoves since the last capture or pawn advance, used for the fifty-move rule.
     fenStringStream >> std::skipws;
     fenStringStream >> fiftyMoves;
-    assert(fiftyMoves >= 0 && fiftyMoves <= 50);
+    if(fiftyMoves < 0 || fiftyMoves > 100)
+        throw std::invalid_argument("Invalid FEN halfmove clock: " + std::to_string(fiftyMoves) + ", must be 0-100");
     this->fiftyMovesCount = fiftyMoves;
 
     // 6. Fullmove number: The number of the full move. It starts at 1, and is incremented after Black's move.
     fenStringStream >> fullMoves;
-    assert(fullMoves >= 1);
+    if(fullMoves < 1)
+        throw std::invalid_argument("Invalid FEN fullmove number: " + std::to_string(fullMoves) + ", must be >= 1");
     this->ply = (fullMoves - 1) * 2 + this->sideToMove;
 
     // 7. Compute position hash via Zobrist hashing.
     this->positionIdentity = this->calculatePositionHash();
 }
 
-U64 Position::calculatePositionHash()
+U64 Position::calculatePositionHash() const
 {
     U64 hash { 0 };
 
@@ -225,7 +234,7 @@ U64 Position::calculatePositionHash()
     return hash;
 }
 
-void Position::print()
+void Position::print() const
 {
     // 1. Print 8x8 board to console
     U64 sqBB {};

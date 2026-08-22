@@ -1,21 +1,16 @@
 #include "bitboard.h"
 #include "types.h" //U64
 
+#include <bit> // std::popcount
+
 /*
  * Count number of set bits in bitboard.
- * Consecutively reset LS1B in a loop body and counting 
- * loop cycles until the bitset becomes empty.
- * Method published by Peter Wegner.
+ * Delegates to the C++20 standard library, which typically
+ * lowers to a single hardware popcount instruction.
  */
 int popcount(U64 bitboard)
 {
-    int count { 0 };
-    while(bitboard)
-    {
-        bitboard &= bitboard - 1;
-        ++count;
-    }
-    return count;
+    return std::popcount(bitboard);
 }
 
 /*

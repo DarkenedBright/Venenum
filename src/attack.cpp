@@ -2,17 +2,20 @@
 #include "bitboard.h" // squareToBitboard()
 #include "types.h" // U64, File, Rank, LERFSquare, RayDirection, FancyMagic
 
+namespace
+{
+
 /*
  * Return valid if a slide move of a bishop or rook
  * stayed on the board, and did not wrap around the board
  * to an opposite side file or rank.
  */
-bool slideIsValid(int from, int to)
+[[nodiscard]] bool slideIsValid(int from, int to)
 {
     File fromFile { from % NUM_FILES };
     File toFile { to % NUM_FILES };
     int fileDistance { fromFile - toFile };
-    
+
     Rank fromRank { from / NUM_RANKS };
     Rank toRank { to / NUM_RANKS };
     int rankDistance { fromRank - toRank };
@@ -26,7 +29,7 @@ bool slideIsValid(int from, int to)
  * a relevant occupancy. This includes attacked
  * squares with blocker pieces on them.
  */
-U64 calculateRookAttacks(int sq, U64 occupancy)
+[[nodiscard]] U64 calculateRookAttacks(int sq, U64 occupancy)
 {
     U64 attack { 0ULL };
     RayDirection rookDirections[4] { NORTH, EAST, SOUTH, WEST };
@@ -34,7 +37,7 @@ U64 calculateRookAttacks(int sq, U64 occupancy)
     {
         int curSq { sq + dir };
         int prevSq { sq };
-        U64 bbSq { squareToBitboard(sq) };
+        U64 bbSq { squareToBitboard(curSq) };
         while(slideIsValid(prevSq, curSq))
         {
             attack |= bbSq;
@@ -74,11 +77,11 @@ void initRookAttacks()
         else
         {
             U64* previousSqPointer = ROOK_FANCY_MAGICS[sq - 1].attackTablePointer;
-            int fancyBitsUsed = 64 - ROOK_SHIFT[sq - 1];
-            int pointerOffset = 1ULL << fancyBitsUsed;
+            U64 fancyBitsUsed = static_cast<U64>(64 - ROOK_SHIFT[sq - 1]);
+            U64 pointerOffset = 1ULL << fancyBitsUsed;
             curMagic.attackTablePointer = previousSqPointer + pointerOffset;
         }
-        
+
 
         U64 currentOccupancy { 0ULL };
         do
@@ -99,7 +102,7 @@ void initRookAttacks()
  * a relevant occupancy. This includes attacked
  * squares with blocker pieces on them.
  */
-U64 calculateBishopAttacks(int sq, U64 occupancy)
+[[nodiscard]] U64 calculateBishopAttacks(int sq, U64 occupancy)
 {
     U64 attack { 0ULL };
     RayDirection bishopDirections[4] { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
@@ -147,8 +150,8 @@ void initBishopAttacks()
         else
         {
             U64* previousSqPointer = BISHOP_FANCY_MAGICS[sq - 1].attackTablePointer;
-            int fancyBitsUsed = 64 - BISHOP_SHIFT[sq - 1];
-            int pointerOffset = 1ULL << fancyBitsUsed;
+            U64 fancyBitsUsed = static_cast<U64>(64 - BISHOP_SHIFT[sq - 1]);
+            U64 pointerOffset = 1ULL << fancyBitsUsed;
             curMagic.attackTablePointer = previousSqPointer + pointerOffset;
         }
 
@@ -164,6 +167,8 @@ void initBishopAttacks()
         } while (currentOccupancy);
     }
 }
+
+} // namespace
 
 void Attack::initBishopRookAttacks()
 {

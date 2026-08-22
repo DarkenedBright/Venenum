@@ -5,3 +5,11 @@
 
 # Built Visual Studio Code Extensions
 *.vsix
+
+# Build artifacts
+src/*.o
+/*.d
+/Venenum
+
+# AI dirs
+.claude/

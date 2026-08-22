@@ -32,8 +32,8 @@ class Position
     public:
         static void initZobristPositionKeys();
         explicit Position(const std::string& fenString);
-        U64 calculatePositionHash();
-        void print();
+        [[nodiscard]] U64 calculatePositionHash() const;
+        void print() const;
 };
 
 #endif

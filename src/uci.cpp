@@ -5,6 +5,9 @@
 #include <string> //std::string
 #include <sstream> //std::istringstream
 
+namespace
+{
+
 /*
  * uci
  * Tell engine to use the uci (universal chess interface),
@@ -248,6 +251,8 @@ void commandQuit()
 {
     std::cout << "WARNING: Command 'quit' is not implemented.\n";
 }
+
+} // namespace
 
 void readConsole()
 {

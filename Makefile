@@ -4,7 +4,14 @@
 
 # Compiler settings. Override with `make CXX=clang++` etc.
 CXX ?= g++
-WARNFLAGS = -Wall -Weffc++ -Wextra -Wsign-conversion -Werror -pedantic-errors
+# The "cppbestpractices" strict GCC/Clang set: catches real bugs (shadowing,
+# narrowing/sign conversions, null derefs, missing virtual dtors, C-style
+# casts, switch fallthrough) with no false-positive noise on this codebase.
+# Replaces the older -Weffc++, which mostly enforces dated Effective C++
+# rules and doesn't tolerate doctest.h's macro-generated types (see
+# CONTRIBUTING.md's Testing section for why that forced src/ and tests/
+# onto different flag sets; this set needs no such carve-out).
+WARNFLAGS = -Wall -Wextra -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Woverloaded-virtual -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -pedantic-errors
 CXXSTD = -std=c++23
 # The rook/bishop fancy-magic attack tables (src/attack.h) are built at
 # compile time by a consteval function; Apple Clang's default constexpr
@@ -55,10 +62,7 @@ TESTBUILDDIR = build/test-$(BUILD)
 TESTBINDIR = bin/test-$(BUILD)
 TESTTARGET = $(TESTBINDIR)/$(APPNAME)Tests$(EXE)
 
-# Everything src/*.cpp builds under, minus -Weffc++: the vendored doctest.h's
-# macro-generated types don't satisfy it, and no third-party header realistically does.
-TESTWARNFLAGS = -Wall -Wextra -Wsign-conversion -Werror -pedantic-errors
-TESTCXXFLAGS = $(CXXSTD) $(TESTWARNFLAGS) $(CONSTEXPRFLAGS) $(OPTFLAGS) -I$(SRCDIR)
+TESTCXXFLAGS = $(CXXSTD) $(WARNFLAGS) $(CONSTEXPRFLAGS) $(OPTFLAGS) -I$(SRCDIR)
 
 TESTSRC = $(wildcard $(TESTDIR)/*.cpp)
 TESTOBJ = $(TESTSRC:$(TESTDIR)/%.cpp=$(TESTBUILDDIR)/%.o)

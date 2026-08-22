@@ -27,13 +27,20 @@ make help          # list available targets
 
 Object files and generated `.d` dependency files are written to `build/<debug|release>/`, and the compiled binary to `bin/<debug|release>/`; `src/` stays source-only. All of `build/` and `bin/` are git-ignored. The Makefile auto-detects Windows (via `$(OS)`) to suffix the binary with `.exe`; otherwise it assumes a Unix-like shell (Git Bash/MSYS2/WSL on Windows) providing `mkdir -p` and `rm -rf`.
 
-The project builds with a deliberately strict flag set:
+The project builds with a deliberately strict flag set — the well-known
+["cppbestpractices"](https://github.com/cpp-best-practices/cppbestpractices)
+strict GCC/Clang set:
 
 ```
--std=c++23 -Wall -Weffc++ -Wextra -Wsign-conversion -Werror -pedantic-errors
+-std=c++23 -Wall -Wextra -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Wcast-align -Woverloaded-virtual -Wconversion -Wsign-conversion -Wnull-dereference -Wdouble-promotion -Wformat=2 -Wimplicit-fallthrough -Werror -pedantic-errors
 ```
 
-New code must compile warning-free under these flags. In particular, be deliberate about integer types and signedness (`-Wsign-conversion -Werror` will fail the build on implicit signed/unsigned narrowing), and target C++23 language/library features (`-std=c++23`).
+New code must compile warning-free under these flags. In particular, be
+deliberate about integer types and signedness (`-Wconversion`/
+`-Wsign-conversion` combined with `-Werror` will fail the build on implicit
+narrowing or signed/unsigned conversions), avoid C-style casts (`-Wold-style-cast`
+requires `static_cast`/`reinterpret_cast`/etc.), and target C++23
+language/library features (`-std=c++23`).
 
 ## Testing
 
@@ -46,11 +53,9 @@ Tests live under `tests/`, one `test_<module>.cpp` file per tested `src/`
 module (e.g. `tests/test_bitboard.cpp` tests `src/bitboard.cpp`), using
 [doctest](https://github.com/doctest/doctest) — vendored verbatim at
 `tests/doctest.h` (MIT licensed; the project's only third-party dependency,
-since there's no package manager). Because `doctest.h`'s macro-generated
-types don't satisfy `-Weffc++`, and no vendored third-party header
-realistically does, files under `tests/` compile with the same strict flags
-as `src/` *except* `-Weffc++`; `src/*.cpp` is unaffected and still builds
-under the full flag set described above. Test files link directly against
+since there's no package manager). Files under `tests/` compile under the
+exact same flag set as `src/` (no carve-outs needed — `doctest.h`'s
+macro-generated types satisfy it cleanly). Test files link directly against
 the engine's own compiled `build/<debug|release>/*.o` objects (everything
 except `venenum.cpp`'s `main()`), so tests exercise the exact translation
 units the release binary ships rather than a separately-flagged rebuild.

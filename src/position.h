@@ -19,6 +19,8 @@ enum class FenParseError
     InvalidPiecePlacementChar,
     InvalidEmptySquareCount,
     InvalidPieceChar,
+    InvalidPiecePlacementRankLength,
+    InvalidPiecePlacementRankCount,
     InvalidActiveColorChar,
     MissingFieldSeparator,
     InvalidCastlingChar,
@@ -36,6 +38,8 @@ enum class FenParseError
         case FenParseError::InvalidPiecePlacementChar: return "invalid FEN piece placement character";
         case FenParseError::InvalidEmptySquareCount: return "invalid FEN piece placement: empty-square count out of range";
         case FenParseError::InvalidPieceChar: return "invalid FEN piece character";
+        case FenParseError::InvalidPiecePlacementRankLength: return "invalid FEN piece placement: rank does not contain exactly 8 squares";
+        case FenParseError::InvalidPiecePlacementRankCount: return "invalid FEN piece placement: expected exactly 8 ranks";
         case FenParseError::InvalidActiveColorChar: return "invalid FEN active color character, expected 'w' or 'b'";
         case FenParseError::MissingFieldSeparator: return "invalid FEN: expected space between fields";
         case FenParseError::InvalidCastlingChar: return "invalid FEN castling availability character";

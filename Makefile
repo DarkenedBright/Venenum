@@ -2,8 +2,8 @@
 ######################## Venenum Makefile ##############################
 ########################################################################
 
-# Compiler settings.
-CXX = g++
+# Compiler settings. Override with `make CXX=clang++` etc.
+CXX ?= g++
 WARNFLAGS = -Wall -Weffc++ -Wextra -Wsign-conversion -Werror -pedantic-errors
 CXXSTD = -std=c++23
 # The rook/bishop fancy-magic attack tables (src/attack.h) are built at

@@ -45,6 +45,37 @@ TEST_CASE("fromFen rejects an out-of-range empty-square count")
     CHECK(result.error() == FenParseError::InvalidEmptySquareCount);
 }
 
+TEST_CASE("fromFen rejects a rank with too many squares")
+{
+    // Rank 8 describes 9 squares (8 pawns plus a trailing empty square).
+    auto result { Position::fromFen("pppppppp1/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") };
+    REQUIRE(!result.has_value());
+    CHECK(result.error() == FenParseError::InvalidPiecePlacementRankLength);
+}
+
+TEST_CASE("fromFen rejects a rank with too few squares")
+{
+    // Rank 8 describes only 7 squares before the separator.
+    auto result { Position::fromFen("ppppppp/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") };
+    REQUIRE(!result.has_value());
+    CHECK(result.error() == FenParseError::InvalidPiecePlacementRankLength);
+}
+
+TEST_CASE("fromFen rejects too few ranks")
+{
+    auto result { Position::fromFen("rnbqkbnr/pppppppp/8/8/8/8/8 w KQkq - 0 1") };
+    REQUIRE(!result.has_value());
+    CHECK(result.error() == FenParseError::InvalidPiecePlacementRankCount);
+}
+
+TEST_CASE("fromFen rejects too many ranks")
+{
+    // A 9th rank used to walk `sq` negative and hit undefined behavior in squareToBitboard().
+    auto result { Position::fromFen("8/8/8/8/8/8/8/8/P w KQkq - 0 1") };
+    REQUIRE(!result.has_value());
+    CHECK(result.error() == FenParseError::InvalidPiecePlacementRankCount);
+}
+
 TEST_CASE("fromFen rejects an invalid active color character")
 {
     auto result { Position::fromFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x KQkq - 0 1") };
@@ -114,6 +145,8 @@ TEST_CASE("describe() has a real message for every FenParseError value")
         FenParseError::InvalidPiecePlacementChar,
         FenParseError::InvalidEmptySquareCount,
         FenParseError::InvalidPieceChar,
+        FenParseError::InvalidPiecePlacementRankLength,
+        FenParseError::InvalidPiecePlacementRankCount,
         FenParseError::InvalidActiveColorChar,
         FenParseError::MissingFieldSeparator,
         FenParseError::InvalidCastlingChar,

@@ -57,6 +57,8 @@ std::expected<Position, FenParseError> Position::fromFen(const std::string& fenS
     char fenChar {};
     int fiftyMoves {};
     int fullMoves {};
+    int rankSquareCount { 0 };
+    int rankCount { 0 };
 
     fenStringStream >> std::noskipws;
 
@@ -79,15 +81,30 @@ std::expected<Position, FenParseError> Position::fromFen(const std::string& fenS
             int moveCount { fenChar - '0' };
             if(moveCount < 1 || moveCount > 8)
                 return std::unexpected(FenParseError::InvalidEmptySquareCount);
+            if(rankSquareCount + moveCount > 8)
+                return std::unexpected(FenParseError::InvalidPiecePlacementRankLength);
             sq += moveCount;
+            rankSquareCount += moveCount;
         }
         else if(fenChar == '/')
         {
+            // A rank must be fully described before moving to the next one.
+            if(rankSquareCount != 8)
+                return std::unexpected(FenParseError::InvalidPiecePlacementRankLength);
+            // Only 8 ranks (7 separators) exist on a board.
+            if(rankCount >= 7)
+                return std::unexpected(FenParseError::InvalidPiecePlacementRankCount);
+
             // Move to the next rank towards white
             sq -= 16;
+            rankSquareCount = 0;
+            ++rankCount;
         }
         else
         {
+            if(rankSquareCount >= 8)
+                return std::unexpected(FenParseError::InvalidPiecePlacementRankLength);
+
             // Get the Piece enum from character in FEN
             std::size_t pieceIndex = pieceToChar.find(fenChar);
             if(pieceIndex == std::string::npos || pieceIndex >= std::to_underlying(Piece::NUM_PIECES))
@@ -96,8 +113,12 @@ std::expected<Position, FenParseError> Position::fromFen(const std::string& fenS
             // Update Piece Bitboards
             position.pieceBitboards[pieceIndex] |= squareToBitboard(sq);
             ++sq;
+            ++rankSquareCount;
         }
     }
+    // The final rank must be fully described, and exactly 8 ranks (7 separators) given.
+    if(rankSquareCount != 8 || rankCount != 7)
+        return std::unexpected(FenParseError::InvalidPiecePlacementRankCount);
     // Update Color Bitboards and Occupancy Bitboard
     position.pieceBitboards[std::to_underlying(Piece::WHITE_ALL)] = ( position.pieceBitboards[std::to_underlying(Piece::WHITE_PAWN)] | position.pieceBitboards[std::to_underlying(Piece::WHITE_KNIGHT)] |
                                         position.pieceBitboards[std::to_underlying(Piece::WHITE_BISHOP)] | position.pieceBitboards[std::to_underlying(Piece::WHITE_ROOK)] |

@@ -6,7 +6,7 @@ It is licensed under the GNU General Public License v3.0 — see [LICENSE](LICEN
 
 ## Requirements
 
-- A C++ compiler with C++20 support (developed against `g++` with `-std=c++2a`)
+- A C++ compiler with C++23 support (developed against `g++` with `-std=c++23`)
 - `make`
 
 ## Building
@@ -15,20 +15,20 @@ It is licensed under the GNU General Public License v3.0 — see [LICENSE](LICEN
 make
 ```
 
-This produces a `Venenum` executable in the repository root. To remove build artifacts:
+This produces a debug `Venenum` executable (with debug symbols and ASan/UBSan enabled) at `bin/debug/Venenum`. For an optimized build, use `make release`, which produces `bin/release/Venenum`. To remove build artifacts:
 
 ```sh
 make clean
 ```
 
-On Windows, use the `cleanw`/`cleandepw` targets in place of `clean`/`cleandep`.
+Run `make help` to list all available targets.
 
 ## Running
 
 Venenum is a console application that reads UCI commands from standard input. Point a UCI-compatible chess GUI at the built `Venenum` executable, or run it directly and type commands manually:
 
 ```sh
-./Venenum
+./bin/debug/Venenum
 ```
 
 ```

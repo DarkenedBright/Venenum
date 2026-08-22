@@ -1,69 +1,83 @@
 ########################################################################
-####################### Makefile Template ##############################
+######################## Venenum Makefile ##############################
 ########################################################################
 
-# Compiler settings - Can be customized.
-CC = g++
-CXXFLAGS = -std=c++2a -Wall -Weffc++ -Wextra -Wsign-conversion -Werror -pedantic-errors
-LDFLAGS = 
+# Compiler settings.
+CXX = g++
+WARNFLAGS = -Wall -Weffc++ -Wextra -Wsign-conversion -Werror -pedantic-errors
+CXXSTD = -std=c++23
 
-# Makefile settings - Can be customized.
+# Build type: debug (default) or release. Override with `make BUILD=release`.
+BUILD ?= debug
+
+ifeq ($(BUILD),debug)
+    OPTFLAGS = -g -O0 -fsanitize=address,undefined
+else ifeq ($(BUILD),release)
+    OPTFLAGS = -O2 -DNDEBUG
+else
+    $(error Unknown BUILD '$(BUILD)': expected 'debug' or 'release')
+endif
+
+CXXFLAGS = $(CXXSTD) $(WARNFLAGS) $(OPTFLAGS)
+
+# Project layout.
 APPNAME = Venenum
-EXT = .cpp
 SRCDIR = src
-OBJDIR = src
+BUILDDIR = build/$(BUILD)
+BINDIR = bin/$(BUILD)
 
-############## Do not change anything from here downwards! #############
-SRC = $(wildcard $(SRCDIR)/*$(EXT))
-OBJ = $(SRC:$(SRCDIR)/%$(EXT)=$(OBJDIR)/%.o)
-DEP = $(OBJ:$(OBJDIR)/%.o=%.d)
-# UNIX-based OS variables & settings
-RM = rm
-DELOBJ = $(OBJ)
-# Windows OS variables & settings
-DEL = del
-EXE = .exe
-WDELOBJ = $(SRC:$(SRCDIR)/%$(EXT)=$(OBJDIR)\\%.o)
+# On Windows the linked binary needs a .exe suffix; the rest of this Makefile
+# assumes a Unix-like shell (Git Bash/MSYS2/WSL) providing mkdir -p and rm -rf.
+ifeq ($(OS),Windows_NT)
+    EXE = .exe
+else
+    EXE =
+endif
 
-########################################################################
-####################### Targets beginning here #########################
-########################################################################
+TARGET = $(BINDIR)/$(APPNAME)$(EXE)
 
-all: $(APPNAME)
+SRC = $(wildcard $(SRCDIR)/*.cpp)
+OBJ = $(SRC:$(SRCDIR)/%.cpp=$(BUILDDIR)/%.o)
+DEP = $(OBJ:.o=.d)
 
-# Builds the app
-$(APPNAME): $(OBJ)
-	$(CC) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+.DEFAULT_GOAL := all
+.PHONY: all release run clean help
 
-# Creates the dependecy rules
-%.d: $(SRCDIR)/%$(EXT)
-	@$(CC) $(CXXFLAGS) $< -MM -MT $(@:%.d=$(OBJDIR)/%.o) >$@
+## Build the debug binary (default), or whatever $(BUILD) is set to.
+all: $(TARGET)
 
-# Includes all .h files
+## Convenience alias for `make BUILD=release`.
+release:
+	$(MAKE) BUILD=release
+
+$(TARGET): $(OBJ) | $(BINDIR)
+	$(CXX) $(CXXFLAGS) -o $@ $^
+
+# Compiling also emits a matching .d file (via -MMD -MP) so editing a header
+# correctly triggers a rebuild of every .o that includes it.
+$(BUILDDIR)/%.o: $(SRCDIR)/%.cpp | $(BUILDDIR)
+	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
+
+$(BUILDDIR) $(BINDIR):
+	mkdir -p $@
+
 -include $(DEP)
 
-# Building rule for .o files and its .c/.cpp in combination with all .h
-$(OBJDIR)/%.o: $(SRCDIR)/%$(EXT)
-	$(CC) $(CXXFLAGS) -o $@ -c $<
+## Build (if needed) and run the engine.
+run: $(TARGET)
+	./$(TARGET)
 
-################### Cleaning rules for Unix-based OS ###################
-# Cleans complete project
-.PHONY: clean
+## Remove all build and binary output.
 clean:
-	$(RM) $(DELOBJ) $(DEP) $(APPNAME)
+	rm -rf build bin
 
-# Cleans only all files with the extension .d
-.PHONY: cleandep
-cleandep:
-	$(RM) $(DEP)
-
-#################### Cleaning rules for Windows OS #####################
-# Cleans complete project
-.PHONY: cleanw
-cleanw:
-	$(DEL) $(WDELOBJ) $(DEP) $(APPNAME)$(EXE)
-
-# Cleans only all files with the extension .d
-.PHONY: cleandepw
-cleandepw:
-	$(DEL) $(DEP)
+## List available targets.
+help:
+	@echo "Venenum Makefile targets:"
+	@echo "  make               Build debug binary (-g -O0, ASan/UBSan) at bin/debug/$(APPNAME)"
+	@echo "  make release       Build optimized binary (-O2 -DNDEBUG) at bin/release/$(APPNAME)"
+	@echo "  make run           Build and run the binary (add BUILD=release for the optimized build)"
+	@echo "  make clean         Remove build/ and bin/"
+	@echo "  make help          Show this message"
+	@echo ""
+	@echo "BUILD can also be set directly, e.g.: make BUILD=release"

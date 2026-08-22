@@ -2,11 +2,11 @@
 #include "position.h" //Position::initZobristPositionKeys()
 #include "uci.h" //readConsole()
 
-#include <iostream> //std::cout
+#include <print> //std::println
 
 int main()
 {
-    std::cout << "Venenum - A UCI Chess Engine\n";
+    std::println("Venenum - A UCI Chess Engine");
 
     //Initialization of Engine
     Attack::initBishopRookAttacks();

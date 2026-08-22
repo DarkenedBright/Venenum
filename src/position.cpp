@@ -5,7 +5,7 @@
 
 #include <cctype> // std::isspace(), std::isdigit()
 #include <ios> // std::skipws, std::noskipws
-#include <iostream> // std::cout
+#include <print> // std::print, std::println
 #include <sstream> // std::istringstream
 #include <stdexcept> // std::invalid_argument
 #include <string> // std::string, std::string::npos, std::size_t
@@ -250,19 +250,19 @@ void Position::print() const
                 if(this->pieceBitboards[pieceType] & sqBB)
                 {
                     pieceChar = pieceToChar[pieceType];
-                    std::cout << pieceChar << ' ';
+                    std::print("{} ", pieceChar);
                     break;
                 }
             }
         }
-        std::cout << '\n';
+        std::println();
     }
 
     // 2. Print other state data to console
-    std::cout << "\nEnPassant Square: " << this->enPassantSquare << '\n';
-    std::cout << "Castling Rights: " << this->castlingRights << '\n';
-    std::cout << "Fifty Moves Count: " << this->fiftyMovesCount << '\n';
-    std::cout << "Ply: " << this->ply << '\n';
-    std::cout << "Position ID: " << this->positionIdentity << '\n';
-    std::cout << "Side to Move: " << this->sideToMove << '\n';
+    std::println("\nEnPassant Square: {}", static_cast<int>(this->enPassantSquare));
+    std::println("Castling Rights: {}", this->castlingRights);
+    std::println("Fifty Moves Count: {}", this->fiftyMovesCount);
+    std::println("Ply: {}", this->ply);
+    std::println("Position ID: {}", this->positionIdentity);
+    std::println("Side to Move: {}", static_cast<int>(this->sideToMove));
 }

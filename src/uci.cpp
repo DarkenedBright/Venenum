@@ -1,7 +1,8 @@
 #include "uci.h"
 #include "position.h"
 
-#include <iostream> // std::cin, std::cout
+#include <iostream> // std::cin
+#include <print> // std::println
 #include <string> //std::string
 #include <sstream> //std::istringstream
 
@@ -22,7 +23,7 @@ void commandUCI()
 {
     // TODO call "id" command
     // TODO print "option" commands
-    std::cout << "uciok\n";
+    std::println("uciok");
 }
 
 /*
@@ -35,7 +36,7 @@ void commandUCI()
  */
 void commandDebug()
 {
-    std::cout << "WARNING: Command 'debug' is not implemented.\n";
+    std::println("WARNING: Command 'debug' is not implemented.");
 }
 
 /*
@@ -52,7 +53,7 @@ void commandDebug()
  */
 void commandIsReady()
 {
-    std::cout << "readyok\n";
+    std::println("readyok");
 }
 
 /*
@@ -88,8 +89,8 @@ void commandSetOption(std::istringstream& uciStringStream)
             return;
         uciStringStream >> value;
     }
-    std::cout << "WARNING: Command 'setoption' is not implemented.\n";
-    std::cout << "Name: " << name << ", Value: " << value << '\n';
+    std::println("WARNING: Command 'setoption' is not implemented.");
+    std::println("Name: {}, Value: {}", name, value);
 }
 
 /*
@@ -110,7 +111,7 @@ void commandSetOption(std::istringstream& uciStringStream)
  */
 void commandRegister()
 {
-    std::cout << "WARNING: Command 'register' is not implemented.\n";
+    std::println("WARNING: Command 'register' is not implemented.");
 }
 
 /*
@@ -126,7 +127,7 @@ void commandRegister()
  */
 void commandUCINewGame()
 {
-    std::cout << "WARNING: Command 'ucinewgame' is not implemented.\n";
+    std::println("WARNING: Command 'ucinewgame' is not implemented.");
 }
 
 /*
@@ -170,8 +171,8 @@ void commandPosition(std::istringstream& uciStringStream)
         //TODO Apply move to position in order
     }
 
-    std::cout << "WARNING: Command 'position' is not implemented.\n";
-    std::cout << "FEN: " << fenPosition << '\n';
+    std::println("WARNING: Command 'position' is not implemented.");
+    std::println("FEN: {}", fenPosition);
 }
 
 /*
@@ -220,7 +221,7 @@ void commandGo(std::istringstream& uciStringStream)
 {
     std::string uciPart {};
     uciStringStream >> uciPart;
-    std::cout << "WARNING: Command 'go' is not implemented.\n";
+    std::println("WARNING: Command 'go' is not implemented.");
 }
 
 /*
@@ -230,7 +231,7 @@ void commandGo(std::istringstream& uciStringStream)
  */
 void commandStop()
 {
-    std::cout << "WARNING: Command 'stop' is not implemented.\n";
+    std::println("WARNING: Command 'stop' is not implemented.");
 }
 
 /*
@@ -240,7 +241,7 @@ void commandStop()
  */
 void commandPonderHit()
 {
-    std::cout << "WARNING: Command 'ponderhit' is not implemented.\n";
+    std::println("WARNING: Command 'ponderhit' is not implemented.");
 }
 
 /*
@@ -249,7 +250,7 @@ void commandPonderHit()
  */
 void commandQuit()
 {
-    std::cout << "WARNING: Command 'quit' is not implemented.\n";
+    std::println("WARNING: Command 'quit' is not implemented.");
 }
 
 } // namespace

@@ -17,21 +17,22 @@ Thanks for your interest in working on Venenum. This document covers the project
 ## Build system
 
 ```sh
-make          # build the Venenum executable
-make clean    # remove build artifacts (Unix)
-make cleandep # remove only generated .d dependency files (Unix)
-make cleanw / cleandepw  # Windows equivalents
+make               # build a debug binary (-g -O0, ASan/UBSan) at bin/debug/Venenum
+make release       # build an optimized binary (-O2 -DNDEBUG) at bin/release/Venenum
+make run           # build and run the binary (add BUILD=release for the optimized build)
+make clean         # remove build/ and bin/ entirely
+make help          # list available targets
 ```
 
-Object files are written alongside their sources in `src/`; the compiled binary and generated `.d`/`.o` files are git-ignored.
+Object files and generated `.d` dependency files are written to `build/<debug|release>/`, and the compiled binary to `bin/<debug|release>/`; `src/` stays source-only. All of `build/` and `bin/` are git-ignored. The Makefile auto-detects Windows (via `$(OS)`) to suffix the binary with `.exe`; otherwise it assumes a Unix-like shell (Git Bash/MSYS2/WSL on Windows) providing `mkdir -p` and `rm -rf`.
 
 The project builds with a deliberately strict flag set:
 
 ```
--std=c++2a -Wall -Weffc++ -Wextra -Wsign-conversion -Werror -pedantic-errors
+-std=c++23 -Wall -Weffc++ -Wextra -Wsign-conversion -Werror -pedantic-errors
 ```
 
-New code must compile warning-free under these flags. In particular, be deliberate about integer types and signedness (`-Wsign-conversion -Werror` will fail the build on implicit signed/unsigned narrowing), and target C++20 language/library features (`-std=c++2a`).
+New code must compile warning-free under these flags. In particular, be deliberate about integer types and signedness (`-Wsign-conversion -Werror` will fail the build on implicit signed/unsigned narrowing), and target C++23 language/library features (`-std=c++23`).
 
 ## Code style
 

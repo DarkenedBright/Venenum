@@ -72,6 +72,14 @@ class Position
         [[nodiscard]] static std::expected<Position, FenParseError> fromFen(const std::string& fenString);
         [[nodiscard]] U64 calculatePositionHash() const;
         void print() const;
+
+        [[nodiscard]] U64 getPieceBitboard(Piece piece) const;
+        [[nodiscard]] Side getSideToMove() const;
+        [[nodiscard]] Castle getCastlingRights() const;
+        [[nodiscard]] LERFSquare getEnPassantSquare() const;
+        [[nodiscard]] int getFiftyMovesCount() const;
+        [[nodiscard]] int getPly() const;
+        [[nodiscard]] U64 getPositionIdentity() const;
 };
 
 #endif

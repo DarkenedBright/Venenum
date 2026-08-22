@@ -47,8 +47,29 @@ SRC = $(wildcard $(SRCDIR)/*.cpp)
 OBJ = $(SRC:$(SRCDIR)/%.cpp=$(BUILDDIR)/%.o)
 DEP = $(OBJ:.o=.d)
 
+# Test suite layout. Kept separate from src/ so SRC's wildcard doesn't sweep
+# test files into the main binary (which would also collide main()s with
+# venenum.cpp's).
+TESTDIR = tests
+TESTBUILDDIR = build/test-$(BUILD)
+TESTBINDIR = bin/test-$(BUILD)
+TESTTARGET = $(TESTBINDIR)/$(APPNAME)Tests$(EXE)
+
+# Everything src/*.cpp builds under, minus -Weffc++: the vendored doctest.h's
+# macro-generated types don't satisfy it, and no third-party header realistically does.
+TESTWARNFLAGS = -Wall -Wextra -Wsign-conversion -Werror -pedantic-errors
+TESTCXXFLAGS = $(CXXSTD) $(TESTWARNFLAGS) $(CONSTEXPRFLAGS) $(OPTFLAGS) -I$(SRCDIR)
+
+TESTSRC = $(wildcard $(TESTDIR)/*.cpp)
+TESTOBJ = $(TESTSRC:$(TESTDIR)/%.cpp=$(TESTBUILDDIR)/%.o)
+TESTDEP = $(TESTOBJ:.o=.d)
+
+# venenum.cpp's main() must not be linked into the test binary.
+MAINOBJ = $(BUILDDIR)/venenum.o
+ENGINEOBJ = $(filter-out $(MAINOBJ),$(OBJ))
+
 .DEFAULT_GOAL := all
-.PHONY: all release run clean help
+.PHONY: all release run test test-release clean help
 
 ## Build the debug binary (default), or whatever $(BUILD) is set to.
 all: $(TARGET)
@@ -74,6 +95,25 @@ $(BUILDDIR) $(BINDIR):
 run: $(TARGET)
 	./$(TARGET)
 
+## Build (if needed) and run the test suite (add BUILD=release for the optimized build).
+test: $(TESTTARGET)
+	./$(TESTTARGET)
+
+## Convenience alias for `make BUILD=release test`.
+test-release:
+	$(MAKE) BUILD=release test
+
+$(TESTTARGET): $(ENGINEOBJ) $(TESTOBJ) | $(TESTBINDIR)
+	$(CXX) $(CXXFLAGS) -o $@ $^
+
+$(TESTBUILDDIR)/%.o: $(TESTDIR)/%.cpp | $(TESTBUILDDIR)
+	$(CXX) $(TESTCXXFLAGS) -MMD -MP -c $< -o $@
+
+$(TESTBUILDDIR) $(TESTBINDIR):
+	mkdir -p $@
+
+-include $(TESTDEP)
+
 ## Remove all build and binary output.
 clean:
 	rm -rf build bin
@@ -84,6 +124,8 @@ help:
 	@echo "  make               Build debug binary (-g -O0, ASan/UBSan) at bin/debug/$(APPNAME)"
 	@echo "  make release       Build optimized binary (-O2 -DNDEBUG) at bin/release/$(APPNAME)"
 	@echo "  make run           Build and run the binary (add BUILD=release for the optimized build)"
+	@echo "  make test          Build and run the test suite (add BUILD=release for the optimized build)"
+	@echo "  make test-release  Convenience alias for 'make BUILD=release test'"
 	@echo "  make clean         Remove build/ and bin/"
 	@echo "  make help          Show this message"
 	@echo ""

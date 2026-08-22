@@ -13,6 +13,7 @@ Thanks for your interest in working on Venenum. This document covers the project
 | `src/position.h` / `src/position.cpp` | The `Position` class: FEN parsing, Zobrist hashing, board printing. |
 | `src/uci.h` / `src/uci.cpp` | The UCI protocol command loop and handlers. |
 | `src/venenum.cpp` | `main()` — engine startup and initialization. |
+| `tests/` | The test suite (`test_<module>.cpp` per tested `src/` module) and the vendored `doctest.h`. |
 
 ## Build system
 
@@ -33,6 +34,26 @@ The project builds with a deliberately strict flag set:
 ```
 
 New code must compile warning-free under these flags. In particular, be deliberate about integer types and signedness (`-Wsign-conversion -Werror` will fail the build on implicit signed/unsigned narrowing), and target C++23 language/library features (`-std=c++23`).
+
+## Testing
+
+```sh
+make test           # build (debug, with ASan/UBSan) and run the test suite
+make test-release   # build (optimized) and run the test suite
+```
+
+Tests live under `tests/`, one `test_<module>.cpp` file per tested `src/`
+module (e.g. `tests/test_bitboard.cpp` tests `src/bitboard.cpp`), using
+[doctest](https://github.com/doctest/doctest) — vendored verbatim at
+`tests/doctest.h` (MIT licensed; the project's only third-party dependency,
+since there's no package manager). Because `doctest.h`'s macro-generated
+types don't satisfy `-Weffc++`, and no vendored third-party header
+realistically does, files under `tests/` compile with the same strict flags
+as `src/` *except* `-Weffc++`; `src/*.cpp` is unaffected and still builds
+under the full flag set described above. Test files link directly against
+the engine's own compiled `build/<debug|release>/*.o` objects (everything
+except `venenum.cpp`'s `main()`), so tests exercise the exact translation
+units the release binary ships rather than a separately-flagged rebuild.
 
 ## Code style
 

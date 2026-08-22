@@ -236,6 +236,41 @@ U64 Position::calculatePositionHash() const
     return hash;
 }
 
+U64 Position::getPieceBitboard(Piece piece) const
+{
+    return this->pieceBitboards[std::to_underlying(piece)];
+}
+
+Side Position::getSideToMove() const
+{
+    return this->sideToMove;
+}
+
+Castle Position::getCastlingRights() const
+{
+    return this->castlingRights;
+}
+
+LERFSquare Position::getEnPassantSquare() const
+{
+    return this->enPassantSquare;
+}
+
+int Position::getFiftyMovesCount() const
+{
+    return this->fiftyMovesCount;
+}
+
+int Position::getPly() const
+{
+    return this->ply;
+}
+
+U64 Position::getPositionIdentity() const
+{
+    return this->positionIdentity;
+}
+
 void Position::print() const
 {
     // 1. Print 8x8 board to console

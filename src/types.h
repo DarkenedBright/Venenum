@@ -1,37 +1,55 @@
 #ifndef TYPES_H
 #define TYPES_H
 
+#include <cstddef> // std::size_t
+#include <utility> // std::to_underlying
+
 //C++ Standard guarantees ULL to be AT LEAST 64 bits
 using U64 = unsigned long long;
 
-enum Piece : int
+enum class Piece : int
 {
-    EMPTY, 
-    WHITE_PAWN, WHITE_KNIGHT, WHITE_BISHOP, WHITE_ROOK, WHITE_QUEEN, WHITE_KING, 
-    BLACK_PAWN, BLACK_KNIGHT, BLACK_BISHOP, BLACK_ROOK, BLACK_QUEEN, BLACK_KING, 
+    EMPTY,
+    WHITE_PAWN, WHITE_KNIGHT, WHITE_BISHOP, WHITE_ROOK, WHITE_QUEEN, WHITE_KING,
+    BLACK_PAWN, BLACK_KNIGHT, BLACK_BISHOP, BLACK_ROOK, BLACK_QUEEN, BLACK_KING,
     NUM_PIECES,
     WHITE_ALL = 13, BLACK_ALL, ALL_PIECES,
     NUM_PIECES_ALL
 };
 
-enum Side : int
+enum class Side : int
 {
     WHITE, BLACK, NUM_SIDES
 };
 
-enum Castle : int
+enum class Castle : int
 {
-    WHITE_KING_CASTLE = 1, WHITE_QUEEN_CASTLE = 2, 
+    WHITE_KING_CASTLE = 1, WHITE_QUEEN_CASTLE = 2,
     BLACK_KING_CASTLE = 4, BLACK_QUEEN_CASTLE = 8,
     NUM_CASTLE_STATES = 16
 };
 
-enum Rank : int
+/*
+ * Castle is used as an OR-able bitmask of the four castling-right flags,
+ * so it gets bitwise operators to keep that usage as terse as it was
+ * with a plain unscoped enum.
+ */
+constexpr Castle operator|(Castle a, Castle b)
+{
+    return static_cast<Castle>(std::to_underlying(a) | std::to_underlying(b));
+}
+constexpr Castle& operator|=(Castle& a, Castle b) { a = a | b; return a; }
+constexpr Castle operator&(Castle a, Castle b)
+{
+    return static_cast<Castle>(std::to_underlying(a) & std::to_underlying(b));
+}
+
+enum class Rank : int
 {
     RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7, RANK_8, NUM_RANKS
 };
 
-enum File : int
+enum class File : int
 {
     FILE_A, FILE_B, FILE_C, FILE_D, FILE_E, FILE_F, FILE_G, FILE_H, NUM_FILES
 };
@@ -52,7 +70,7 @@ enum File : int
  * 
  *     A  B  C  D  E  F  G  H
  */
-enum LERFSquare : int
+enum class LERFSquare : int
 {
     A1, B1, C1, D1, E1, F1, G1, H1,
     A2, B2, C2, D2, E2, F2, G2, H2,
@@ -78,7 +96,7 @@ enum LERFSquare : int
  * soWe         sout         soEa
  * southwest    south   southeast
  */
-enum RayDirection : int
+enum class RayDirection : int
 {
     NORTH = 8,
     NORTH_EAST = 9,
@@ -91,12 +109,17 @@ enum RayDirection : int
 };
 
 /*
- * Used for sliding piece attacks. See attack.cpp
- * and https://www.chessprogramming.org/Magic_Bitboards#Fancy
+ * Used for sliding piece attacks. See attack.h. Stores an offset into
+ * the shared attack table rather than a raw pointer, since the table
+ * is built at compile time by a consteval function: a pointer computed
+ * inside that function's local temporary would not "rebase" when the
+ * temporary is copied out to initialize the inline constexpr global it
+ * feeds, whereas an offset is just a value that copies correctly.
+ * See https://www.chessprogramming.org/Magic_Bitboards#Fancy
  */
 struct FancyMagic
 {
-    U64* attackTablePointer {};
+    std::size_t offset {};
     U64 occupancyMask {};
     U64 magicNumber {};
     int shift {};

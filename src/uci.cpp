@@ -1,13 +1,17 @@
 #include "uci.h"
-#include "position.h"
+#include "position.h" // Position, Position::fromFen, describe, STANDARD_START_FEN
 
 #include <iostream> // std::cin
+#include <optional> // std::optional
 #include <print> // std::println
 #include <string> //std::string
 #include <sstream> //std::istringstream
+#include <utility> // std::move
 
 namespace
 {
+
+std::optional<Position> currentPosition {};
 
 /*
  * uci
@@ -161,7 +165,13 @@ void commandPosition(std::istringstream& uciStringStream)
         return;
     }
 
-    //TODO Set Position Class? to fen position
+    auto parsedPosition { Position::fromFen(fenPosition) };
+    if(!parsedPosition)
+    {
+        std::println("WARNING: Invalid 'position' command: {}", describe(parsedPosition.error()));
+        return;
+    }
+    currentPosition = std::move(*parsedPosition);
 
     if(uciPart != "moves")
         return;

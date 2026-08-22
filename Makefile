@@ -6,6 +6,13 @@
 CXX = g++
 WARNFLAGS = -Wall -Weffc++ -Wextra -Wsign-conversion -Werror -pedantic-errors
 CXXSTD = -std=c++23
+# The rook/bishop fancy-magic attack tables (src/attack.h) are built at
+# compile time by a consteval function; Apple Clang's default constexpr
+# step limit (1,048,576) is too low for that computation, so it's raised
+# here. This flag is Clang-specific (GCC's equivalent, -fconstexpr-ops-limit,
+# already defaults far higher) -- this project currently only builds with
+# Apple Clang (CXX=g++ resolves to it on this toolchain).
+CONSTEXPRFLAGS = -fconstexpr-steps=100000000
 
 # Build type: debug (default) or release. Override with `make BUILD=release`.
 BUILD ?= debug
@@ -18,7 +25,7 @@ else
     $(error Unknown BUILD '$(BUILD)': expected 'debug' or 'release')
 endif
 
-CXXFLAGS = $(CXXSTD) $(WARNFLAGS) $(OPTFLAGS)
+CXXFLAGS = $(CXXSTD) $(WARNFLAGS) $(CONSTEXPRFLAGS) $(OPTFLAGS)
 
 # Project layout.
 APPNAME = Venenum

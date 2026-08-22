@@ -7,9 +7,9 @@ Thanks for your interest in working on Venenum. This document covers the project
 | File | Purpose |
 | --- | --- |
 | `src/types.h` | Core enums (`Piece`, `Side`, `Castle`, `Rank`, `File`, `LERFSquare`, `RayDirection`) and the `FancyMagic` struct. |
-| `src/bitboard.h` / `src/bitboard.cpp` | Generic bitboard helpers: `popcount`, `setBit`, `resetBit`, `squareToBitboard`. |
+| `src/bitboard.h` / `src/bitboard.cpp` | Generic bitboard helpers: `popcount`, `setBit`, `resetBit`, `squareToBitboard` (`constexpr`). |
 | `src/prng.h` | `PRNG`, a xorshift pseudorandom number generator used for Zobrist key generation. |
-| `src/attack.h` / `src/attack.cpp` | Precomputed pawn/knight/king attack tables and fancy-magic-bitboard sliding-piece (bishop/rook) attack generation. |
+| `src/attack.h` / `src/attack.cpp` | Precomputed pawn/knight/king attack tables and fancy-magic-bitboard sliding-piece (bishop/rook) attack tables, generated entirely at compile time by a `consteval` function; `attack.cpp` exists only to force that generation into the build and guard it with `static_assert`s, since nothing consumes the tables yet. |
 | `src/position.h` / `src/position.cpp` | The `Position` class: FEN parsing, Zobrist hashing, board printing. |
 | `src/uci.h` / `src/uci.cpp` | The UCI protocol command loop and handlers. |
 | `src/venenum.cpp` | `main()` — engine startup and initialization. |
@@ -47,7 +47,7 @@ New code must compile warning-free under these flags. In particular, be delibera
 
   Keep this comment up to date when you add or remove usages of a header — if a header is no longer needed for the symbol named in its comment, update or remove the include.
 - **Internal linkage**: functions that are implementation details of a single `.cpp` file (not declared in any header) are wrapped in an unnamed `namespace { ... }` rather than marked `static`. See `src/attack.cpp` or `src/uci.cpp` for examples.
-- **`enum`, not `enum class`**: `Piece`, `Side`, `Castle`, `Rank`, `File`, `LERFSquare`, and `RayDirection` are deliberately plain (unscoped) enums, not `enum class`. Square and direction arithmetic (`sq + dir`, `rank * 8 + file`, array indexing by square) relies on implicit conversion to `int`, which is standard practice in bitboard-based chess engines. Don't convert these to scoped enums.
+- **`enum class`, not plain `enum`**: `Piece`, `Side`, `Castle`, `Rank`, `File`, `LERFSquare`, and `RayDirection` are scoped enums with an explicit underlying type. Square and direction arithmetic that needs the integer value (`sq + dir`, `rank * 8 + file`, array indexing by square) goes through `std::to_underlying(...)` rather than relying on implicit conversion. `Castle` additionally has `operator|`, `operator|=`, and `operator&` overloads so it stays ergonomic as an OR-able bitmask.
 - **Const-correctness**: mark member functions `const` when they don't mutate object state.
 - **`[[nodiscard]]`**: apply to functions that return a value with no side effects, so callers can't accidentally discard the result.
 

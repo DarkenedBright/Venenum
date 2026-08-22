@@ -1,177 +1,26 @@
-#include "attack.h"
-#include "bitboard.h" // squareToBitboard()
-#include "types.h" // U64, File, Rank, LERFSquare, RayDirection, FancyMagic
+#include "attack.h" // KNIGHT_ATTACKS, ROOK_FANCY_MAGICS, ROOK_ATTACKS_TABLE, ROOK_ATTACKS_TABLE_SIZE, BISHOP_ATTACKS_TABLE, BISHOP_ATTACKS_TABLE_SIZE
+#include "types.h" // U64, LERFSquare, FancyMagic
 
+#include <utility> // std::to_underlying
+
+/*
+ * No move generator consumes the fancy-magic attack tables yet, so
+ * without a translation unit including attack.h, its consteval table
+ * generation would never actually be compiled or checked by a build.
+ * These static_asserts force that compilation and double as a permanent
+ * compile-time regression guard against a broken magic number or offset
+ * calculation, since this repo has no test suite to catch it another way.
+ */
 namespace
 {
-
-/*
- * Return valid if a slide move of a bishop or rook
- * stayed on the board, and did not wrap around the board
- * to an opposite side file or rank.
- */
-[[nodiscard]] bool slideIsValid(int from, int to)
-{
-    File fromFile { from % NUM_FILES };
-    File toFile { to % NUM_FILES };
-    int fileDistance { fromFile - toFile };
-
-    Rank fromRank { from / NUM_RANKS };
-    Rank toRank { to / NUM_RANKS };
-    int rankDistance { fromRank - toRank };
-
-    return to >= A1 && to < NUM_SQUARES && fileDistance > -2 && fileDistance < 2 && rankDistance > -2 && rankDistance < 2;
+    constexpr FancyMagic rookA1Magic { ROOK_FANCY_MAGICS[std::to_underlying(LERFSquare::A1)] };
+    constexpr std::size_t rookA1EmptyIndex { static_cast<std::size_t>((0ULL * rookA1Magic.magicNumber) >> rookA1Magic.shift) };
+    constexpr U64 rookA1EmptyBoardAttack { ROOK_ATTACKS_TABLE[rookA1Magic.offset + rookA1EmptyIndex] };
 }
 
-/*
- * Return a bitboard containing all attacked
- * squares on the board from a rook on sq with
- * a relevant occupancy. This includes attacked
- * squares with blocker pieces on them.
- */
-[[nodiscard]] U64 calculateRookAttacks(int sq, U64 occupancy)
-{
-    U64 attack { 0ULL };
-    RayDirection rookDirections[4] { NORTH, EAST, SOUTH, WEST };
-    for(RayDirection dir: rookDirections)
-    {
-        int curSq { sq + dir };
-        int prevSq { sq };
-        U64 bbSq { squareToBitboard(curSq) };
-        while(slideIsValid(prevSq, curSq))
-        {
-            attack |= bbSq;
-
-            if(occupancy & bbSq) break;
-
-            prevSq = curSq;
-            curSq += dir;
-            bbSq = squareToBitboard(curSq);
-        }
-    }
-
-    return attack;
-}
-
-/*
- * Loop through all the squares, and initialize attack bitboards
- * for rook pieces with all possible relevant occupancies for that
- * square. The traversal of all subsets of a specific occupancy uses
- * the formula a = (a - b) & b. Called the Carry-Rippler method, introduced
- * by Marcel van Kervinck and later by Steffan Westcott.
- */
-void initRookAttacks()
-{
-    for(int sq { A1 }; sq < NUM_SQUARES; ++sq)
-    {
-        FancyMagic& curMagic = ROOK_FANCY_MAGICS[sq];
-        curMagic.shift = ROOK_SHIFT[sq];
-        curMagic.magicNumber = ROOK_MAGIC_NUMBERS[sq];
-        curMagic.occupancyMask = ROOK_OCCUPANCY[sq];
-
-        // Calculate pointer address into ROOK_ATTACKS_TABLE for sq
-        if(sq == A1)
-        {
-            curMagic.attackTablePointer = ROOK_ATTACKS_TABLE;
-        }
-        else
-        {
-            U64* previousSqPointer = ROOK_FANCY_MAGICS[sq - 1].attackTablePointer;
-            U64 fancyBitsUsed = static_cast<U64>(64 - ROOK_SHIFT[sq - 1]);
-            U64 pointerOffset = 1ULL << fancyBitsUsed;
-            curMagic.attackTablePointer = previousSqPointer + pointerOffset;
-        }
-
-
-        U64 currentOccupancy { 0ULL };
-        do
-        {
-            U64 curIndex { (currentOccupancy * curMagic.magicNumber) >> curMagic.shift };
-            U64 curAttack { calculateRookAttacks(sq, currentOccupancy) };
-
-            curMagic.attackTablePointer[curIndex] = curAttack;
-
-            currentOccupancy = (currentOccupancy - curMagic.occupancyMask) & curMagic.occupancyMask;
-        } while (currentOccupancy);
-    }
-}
-
-/*
- * Return a bitboard containing all attacked
- * squares on the board from a bishop on sq with
- * a relevant occupancy. This includes attacked
- * squares with blocker pieces on them.
- */
-[[nodiscard]] U64 calculateBishopAttacks(int sq, U64 occupancy)
-{
-    U64 attack { 0ULL };
-    RayDirection bishopDirections[4] { NORTH_EAST, SOUTH_EAST, SOUTH_WEST, NORTH_WEST };
-    for(RayDirection dir: bishopDirections)
-    {
-        int curSq { sq + dir };
-        int prevSq { sq };
-        U64 bbSq { squareToBitboard(curSq) };
-        while(slideIsValid(prevSq, curSq))
-        {
-            attack |= bbSq;
-
-            if(occupancy & bbSq) break;
-
-            prevSq = curSq;
-            curSq += dir;
-            bbSq = squareToBitboard(curSq);
-        }
-    }
-
-    return attack;
-}
-
-/*
- * Loop through all the squares, and initialize attack bitboards
- * for bishop pieces with all possible relevant occupancies for that
- * square. The traversal of all subsets of a specific occupancy uses
- * the formula a = (a - b) & b. Called the Carry-Rippler method, introduced
- * by Marcel van Kervinck and later by Steffan Westcott.
- */
-void initBishopAttacks()
-{
-    for(int sq { A1 }; sq < NUM_SQUARES; ++sq)
-    {
-        FancyMagic& curMagic = BISHOP_FANCY_MAGICS[sq];
-        curMagic.shift = BISHOP_SHIFT[sq];
-        curMagic.magicNumber = BISHOP_MAGIC_NUMBERS[sq];
-        curMagic.occupancyMask = BISHOP_OCCUPANCY[sq];
-
-        // Calculate pointer address into BISHOP_ATTACKS_TABLE for sq
-        if(sq == A1)
-        {
-            curMagic.attackTablePointer = BISHOP_ATTACKS_TABLE;
-        }
-        else
-        {
-            U64* previousSqPointer = BISHOP_FANCY_MAGICS[sq - 1].attackTablePointer;
-            U64 fancyBitsUsed = static_cast<U64>(64 - BISHOP_SHIFT[sq - 1]);
-            U64 pointerOffset = 1ULL << fancyBitsUsed;
-            curMagic.attackTablePointer = previousSqPointer + pointerOffset;
-        }
-
-        U64 currentOccupancy { 0ULL };
-        do
-        {
-            U64 curIndex { (currentOccupancy * curMagic.magicNumber) >> curMagic.shift };
-            U64 curAttack { calculateBishopAttacks(sq, currentOccupancy) };
-
-            curMagic.attackTablePointer[curIndex] = curAttack;
-
-            currentOccupancy = (currentOccupancy - curMagic.occupancyMask) & curMagic.occupancyMask;
-        } while (currentOccupancy);
-    }
-}
-
-} // namespace
-
-void Attack::initBishopRookAttacks()
-{
-    initRookAttacks();
-    initBishopAttacks();
-}
+// Knight attack from E2, per the documented example in attack.h.
+static_assert(KNIGHT_ATTACKS[std::to_underlying(LERFSquare::E2)] == 0x28440044ULL);
+static_assert(ROOK_ATTACKS_TABLE.size() == ROOK_ATTACKS_TABLE_SIZE);
+static_assert(BISHOP_ATTACKS_TABLE.size() == BISHOP_ATTACKS_TABLE_SIZE);
+// Rook on A1 with an empty board attacks the whole A-file and 1st rank, minus A1 itself.
+static_assert(rookA1EmptyBoardAttack == 0x1010101010101FEULL);

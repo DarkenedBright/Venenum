@@ -32,12 +32,3 @@ U64 setBit(U64 bitboard, int sq)
     bitboard |= squareToBitboard(sq);
     return bitboard;
 }
-
-/*
- * Take in a LERFSquare, and return a U64
- * bitboard with the relevant square bit set.
- */
-U64 squareToBitboard(int sq)
-{
-    return (1ULL << sq);
-}

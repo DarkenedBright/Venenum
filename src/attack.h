@@ -1,15 +1,12 @@
 #ifndef ATTACK_H
 #define ATTACK_H
 
-#include "types.h" //U64, NUM_SIDES, NUM_SQUARES, FancyMagic
+#include "bitboard.h" // squareToBitboard()
+#include "types.h" //U64, Side, File, Rank, LERFSquare, RayDirection, FancyMagic
 
-namespace Attack
-{
-    void initBishopRookAttacks();
-}
-
-inline FancyMagic ROOK_FANCY_MAGICS[NUM_SQUARES] {};
-inline FancyMagic BISHOP_FANCY_MAGICS[NUM_SQUARES] {};
+#include <array> // std::array
+#include <cstddef> // std::size_t
+#include <utility> // std::to_underlying
 
 /*
  * Pawn Attack Example: White Pawn attack from E2
@@ -25,7 +22,7 @@ inline FancyMagic BISHOP_FANCY_MAGICS[NUM_SQUARES] {};
  * 0000 X000
  * 0000 0000
  */
-inline constexpr U64 PAWN_ATTACKS[NUM_SIDES][NUM_SQUARES] { 
+inline constexpr U64 PAWN_ATTACKS[std::to_underlying(Side::NUM_SIDES)][std::to_underlying(LERFSquare::NUM_SQUARES)] {
     { //white pawn attacks
         0x200ULL, 0x500ULL, 0xA00ULL, 0x1400ULL, 0x2800ULL, 0x5000ULL, 0xA000ULL, 0x4000ULL,
         0x20000ULL, 0x50000ULL, 0xA0000ULL, 0x140000ULL, 0x280000ULL, 0x500000ULL, 0xA00000ULL, 0x400000ULL,
@@ -62,7 +59,7 @@ inline constexpr U64 PAWN_ATTACKS[NUM_SIDES][NUM_SQUARES] {
  * 0000 X000
  * 0010 0010
  */
-inline constexpr U64 KNIGHT_ATTACKS[NUM_SQUARES] { //knight attacks are color agnostic
+inline constexpr U64 KNIGHT_ATTACKS[std::to_underlying(LERFSquare::NUM_SQUARES)] { //knight attacks are color agnostic
     0x20400ULL, 0x50800ULL, 0xA1100ULL, 0x142200ULL, 0x284400ULL, 0x508800ULL, 0xA01001ULL, 0x402000ULL, 
     0x2040004ULL, 0x5080008ULL, 0xA110011ULL, 0x14220022ULL, 0x28440044ULL, 0x50880088ULL, 0xA0100110ULL, 0x40200020ULL, 
     0x204000402ULL, 0x508000805ULL, 0xA1100110AULL, 0x1422002214ULL, 0x2844004428ULL, 0x5088008850ULL, 0xA0100110A0ULL, 0x4020002040ULL, 
@@ -87,7 +84,7 @@ inline constexpr U64 KNIGHT_ATTACKS[NUM_SQUARES] { //knight attacks are color ag
  * 0001 X100
  * 0001 1100
  */
-inline constexpr U64 KING_ATTACKS[NUM_SQUARES] { //king attacks are color agnostic
+inline constexpr U64 KING_ATTACKS[std::to_underlying(LERFSquare::NUM_SQUARES)] { //king attacks are color agnostic
     0x302ULL, 0x705ULL, 0xE0AULL, 0x1C14ULL, 0x3828ULL, 0x7050ULL, 0xE0A0ULL, 0xC040ULL, 
     0x30203ULL, 0x70507ULL, 0xE0A0EULL, 0x1C141CULL, 0x382838ULL, 0x705070ULL, 0xE0A0E0ULL, 0xC040C0ULL, 
     0x3020300ULL, 0x7050700ULL, 0xE0A0E00ULL, 0x1C141C00ULL, 0x38283800ULL, 0x70507000ULL, 0xE0A0E000ULL, 0xC040C000ULL, 
@@ -119,7 +116,7 @@ inline constexpr U64 KING_ATTACKS[NUM_SQUARES] { //king attacks are color agnost
  * 0000 X000
  * 0000 0000
  */
-inline constexpr U64 BISHOP_OCCUPANCY[NUM_SQUARES] { 
+inline constexpr U64 BISHOP_OCCUPANCY[std::to_underlying(LERFSquare::NUM_SQUARES)] {
     0x40201008040200ULL, 0x402010080400ULL, 0x4020100A00ULL, 0x40221400ULL, 0x2442800ULL, 0x204085000ULL, 0x20408102000ULL, 0x2040810204000ULL, 
     0x20100804020000ULL, 0x40201008040000ULL, 0x4020100A0000ULL, 0x4022140000ULL, 0x244280000ULL, 0x20408500000ULL, 0x2040810200000ULL, 0x4081020400000ULL, 
     0x10080402000200ULL, 0x20100804000400ULL, 0x4020100A000A00ULL, 0x402214001400ULL, 0x24428002800ULL, 0x2040850005000ULL, 0x4081020002000ULL, 0x8102040004000ULL, 
@@ -168,14 +165,14 @@ inline constexpr int BISHOP_SHIFT[64] = {
  * Based on bit shift amounts given in BISHOP_SHIFT,
  * use 0x12C0 as the total number of pre-calculated bishop
  * attack bitboards needed to be stored.
- * 
+ *
  * 4x 9-bit = 4 x 2^9 = 4 x 512 = 2048
  * 12x 7-bit = 12 x 2^7 = 12 x 128 = 1536
  * 28x 5-bit = 28 x 2^5 = 28 x 32 = 896
  * 20x 4-bit = 20 x 2^4 = 20 x 16 = 320
  * Total = 4800 = 0x12C0
  */
-inline U64 BISHOP_ATTACKS_TABLE[0x12C0] {};
+inline constexpr std::size_t BISHOP_ATTACKS_TABLE_SIZE { 0x12C0 };
 
 /*
  * Occupancy is used to denote relevant squares that could potentially
@@ -198,7 +195,7 @@ inline U64 BISHOP_ATTACKS_TABLE[0x12C0] {};
  * 0111 X110
  * 0000 0000
  */
-inline constexpr U64 ROOK_OCCUPANCY[NUM_SQUARES] { 
+inline constexpr U64 ROOK_OCCUPANCY[std::to_underlying(LERFSquare::NUM_SQUARES)] {
     0x101010101017EULL, 0x202020202027CULL, 0x404040404047AULL, 0x8080808080876ULL, 0x1010101010106EULL, 0x2020202020205EULL, 0x4040404040403EULL, 0x8080808080807EULL, 
     0x1010101017E00ULL, 0x2020202027C00ULL, 0x4040404047A00ULL, 0x8080808087600ULL, 0x10101010106E00ULL, 0x20202020205E00ULL, 0x40404040403E00ULL, 0x80808080807E00ULL, 
     0x10101017E0100ULL, 0x20202027C0200ULL, 0x40404047A0400ULL, 0x8080808760800ULL, 0x101010106E1000ULL, 0x202020205E2000ULL, 0x404040403E4000ULL, 0x808080807E8000ULL, 
@@ -232,7 +229,7 @@ inline constexpr U64 ROOK_MAGIC_NUMBERS[64] = {
  * by the square shift number to remove all irrelevant garbage, to produce
  * a 64 - shift bit index number.
  */
-inline constexpr int ROOK_SHIFT[NUM_SQUARES] = {
+inline constexpr int ROOK_SHIFT[std::to_underlying(LERFSquare::NUM_SQUARES)] = {
     52, 53, 53, 53, 53, 53, 53, 52,
     53, 54, 54, 53, 54, 54, 54, 53,
     53, 54, 54, 54, 54, 54, 54, 53,
@@ -247,13 +244,186 @@ inline constexpr int ROOK_SHIFT[NUM_SQUARES] = {
  * Based on bit shift amounts given in ROOK_SHIFT,
  * use 0x16200 as the total number of pre-calculated rook
  * attack bitboards needed to be stored.
- * 
+ *
  * 5x 9-bit = 5 x 2^9 = 5 x 512 = 2560
  * 36x 10-bit = 36 x 2^10 = 36 x 1024 = 36864
  * 21x 11-bit = 21 x 2^11 = 21 x 2048 = 43008
  * 2x 12-bit = 2 x 2^12 = 2 x 4096 = 8192
  * Total = 90624 = 0x16200
  */
-inline U64 ROOK_ATTACKS_TABLE[0x16200] {};
+inline constexpr std::size_t ROOK_ATTACKS_TABLE_SIZE { 0x16200 };
+
+namespace
+{
+
+/*
+ * Return valid if a slide move of a bishop or rook
+ * stayed on the board, and did not wrap around the board
+ * to an opposite side file or rank.
+ */
+[[nodiscard]] constexpr bool slideIsValid(int from, int to)
+{
+    File fromFile { static_cast<File>(from % std::to_underlying(File::NUM_FILES)) };
+    File toFile { static_cast<File>(to % std::to_underlying(File::NUM_FILES)) };
+    int fileDistance { std::to_underlying(fromFile) - std::to_underlying(toFile) };
+
+    Rank fromRank { static_cast<Rank>(from / std::to_underlying(Rank::NUM_RANKS)) };
+    Rank toRank { static_cast<Rank>(to / std::to_underlying(Rank::NUM_RANKS)) };
+    int rankDistance { std::to_underlying(fromRank) - std::to_underlying(toRank) };
+
+    return to >= std::to_underlying(LERFSquare::A1) && to < std::to_underlying(LERFSquare::NUM_SQUARES) && fileDistance > -2 && fileDistance < 2 && rankDistance > -2 && rankDistance < 2;
+}
+
+/*
+ * Return a bitboard containing all attacked
+ * squares on the board from a rook on sq with
+ * a relevant occupancy. This includes attacked
+ * squares with blocker pieces on them.
+ */
+[[nodiscard]] constexpr U64 calculateRookAttacks(int sq, U64 occupancy)
+{
+    U64 attack { 0ULL };
+    RayDirection rookDirections[4] { RayDirection::NORTH, RayDirection::EAST, RayDirection::SOUTH, RayDirection::WEST };
+    for(RayDirection dir: rookDirections)
+    {
+        int curSq { sq + std::to_underlying(dir) };
+        int prevSq { sq };
+        while(slideIsValid(prevSq, curSq))
+        {
+            U64 bbSq { squareToBitboard(curSq) };
+            attack |= bbSq;
+
+            if(occupancy & bbSq) break;
+
+            prevSq = curSq;
+            curSq += std::to_underlying(dir);
+        }
+    }
+
+    return attack;
+}
+
+/*
+ * Return a bitboard containing all attacked
+ * squares on the board from a bishop on sq with
+ * a relevant occupancy. This includes attacked
+ * squares with blocker pieces on them.
+ */
+[[nodiscard]] constexpr U64 calculateBishopAttacks(int sq, U64 occupancy)
+{
+    U64 attack { 0ULL };
+    RayDirection bishopDirections[4] { RayDirection::NORTH_EAST, RayDirection::SOUTH_EAST, RayDirection::SOUTH_WEST, RayDirection::NORTH_WEST };
+    for(RayDirection dir: bishopDirections)
+    {
+        int curSq { sq + std::to_underlying(dir) };
+        int prevSq { sq };
+        while(slideIsValid(prevSq, curSq))
+        {
+            U64 bbSq { squareToBitboard(curSq) };
+            attack |= bbSq;
+
+            if(occupancy & bbSq) break;
+
+            prevSq = curSq;
+            curSq += std::to_underlying(dir);
+        }
+    }
+
+    return attack;
+}
+
+/*
+ * Bundles a square's fancy-magic lookup metadata together with the
+ * shared attack table it indexes into, so a single consteval function
+ * can produce both as one constant expression (see FancyMagic in
+ * types.h for why this can't be split into two independently
+ * constant-initialized globals).
+ */
+template<std::size_t TableSize>
+struct MagicTables
+{
+    std::array<FancyMagic, std::to_underlying(LERFSquare::NUM_SQUARES)> magics {};
+    std::array<U64, TableSize> table {};
+};
+
+/*
+ * Loop through all the squares, and calculate attack bitboards
+ * for rook pieces with all possible relevant occupancies for that
+ * square. The traversal of all subsets of a specific occupancy uses
+ * the formula a = (a - b) & b. Called the Carry-Rippler method, introduced
+ * by Marcel van Kervinck and later by Steffan Westcott.
+ */
+consteval MagicTables<ROOK_ATTACKS_TABLE_SIZE> buildRookTables()
+{
+    MagicTables<ROOK_ATTACKS_TABLE_SIZE> result {};
+    std::size_t runningOffset { 0 };
+    for(int sq { std::to_underlying(LERFSquare::A1) }; sq < std::to_underlying(LERFSquare::NUM_SQUARES); ++sq)
+    {
+        std::size_t sqIndex { static_cast<std::size_t>(sq) };
+        FancyMagic& curMagic { result.magics[sqIndex] };
+        curMagic.shift = ROOK_SHIFT[sqIndex];
+        curMagic.magicNumber = ROOK_MAGIC_NUMBERS[sqIndex];
+        curMagic.occupancyMask = ROOK_OCCUPANCY[sqIndex];
+        curMagic.offset = runningOffset;
+
+        U64 currentOccupancy { 0ULL };
+        do
+        {
+            U64 curIndex { (currentOccupancy * curMagic.magicNumber) >> curMagic.shift };
+            result.table[curMagic.offset + static_cast<std::size_t>(curIndex)] = calculateRookAttacks(sq, currentOccupancy);
+
+            currentOccupancy = (currentOccupancy - curMagic.occupancyMask) & curMagic.occupancyMask;
+        } while(currentOccupancy);
+
+        U64 fancyBitsUsed { static_cast<U64>(64 - ROOK_SHIFT[sqIndex]) };
+        runningOffset += static_cast<std::size_t>(1ULL << fancyBitsUsed);
+    }
+    return result;
+}
+
+/*
+ * Loop through all the squares, and calculate attack bitboards
+ * for bishop pieces with all possible relevant occupancies for that
+ * square. The traversal of all subsets of a specific occupancy uses
+ * the formula a = (a - b) & b. Called the Carry-Rippler method, introduced
+ * by Marcel van Kervinck and later by Steffan Westcott.
+ */
+consteval MagicTables<BISHOP_ATTACKS_TABLE_SIZE> buildBishopTables()
+{
+    MagicTables<BISHOP_ATTACKS_TABLE_SIZE> result {};
+    std::size_t runningOffset { 0 };
+    for(int sq { std::to_underlying(LERFSquare::A1) }; sq < std::to_underlying(LERFSquare::NUM_SQUARES); ++sq)
+    {
+        std::size_t sqIndex { static_cast<std::size_t>(sq) };
+        FancyMagic& curMagic { result.magics[sqIndex] };
+        curMagic.shift = BISHOP_SHIFT[sqIndex];
+        curMagic.magicNumber = BISHOP_MAGIC_NUMBERS[sqIndex];
+        curMagic.occupancyMask = BISHOP_OCCUPANCY[sqIndex];
+        curMagic.offset = runningOffset;
+
+        U64 currentOccupancy { 0ULL };
+        do
+        {
+            U64 curIndex { (currentOccupancy * curMagic.magicNumber) >> curMagic.shift };
+            result.table[curMagic.offset + static_cast<std::size_t>(curIndex)] = calculateBishopAttacks(sq, currentOccupancy);
+
+            currentOccupancy = (currentOccupancy - curMagic.occupancyMask) & curMagic.occupancyMask;
+        } while(currentOccupancy);
+
+        U64 fancyBitsUsed { static_cast<U64>(64 - BISHOP_SHIFT[sqIndex]) };
+        runningOffset += static_cast<std::size_t>(1ULL << fancyBitsUsed);
+    }
+    return result;
+}
+
+} // namespace
+
+inline constexpr auto ROOK_TABLES { buildRookTables() };
+inline constexpr const auto& ROOK_FANCY_MAGICS { ROOK_TABLES.magics };
+inline constexpr const auto& ROOK_ATTACKS_TABLE { ROOK_TABLES.table };
+
+inline constexpr auto BISHOP_TABLES { buildBishopTables() };
+inline constexpr const auto& BISHOP_FANCY_MAGICS { BISHOP_TABLES.magics };
+inline constexpr const auto& BISHOP_ATTACKS_TABLE { BISHOP_TABLES.table };
 
 #endif

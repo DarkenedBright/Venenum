@@ -51,6 +51,46 @@ New code must compile warning-free under these flags. In particular, be delibera
 - **Const-correctness**: mark member functions `const` when they don't mutate object state.
 - **`[[nodiscard]]`**: apply to functions that return a value with no side effects, so callers can't accidentally discard the result.
 
+## Commit messages
+
+Commit messages (from both human contributors and AI agents) follow the
+standard seven-rule convention:
+
+- Separate subject from body with a blank line
+- Limit the subject line to 50 characters
+- Capitalize the subject line
+- Do not end the subject line with a period
+- Use the imperative mood in the subject line
+- Wrap the body at 72 characters
+- Use the body to explain what and why vs. how
+
+```
+Summarize changes in around 50 characters or less
+
+More detailed explanatory text, if necessary. Wrap it to about 72
+characters or so. In some contexts, the first line is treated as the
+subject of the commit and the rest of the text as the body. The
+blank line separating the summary from the body is critical (unless
+you omit the body entirely); various tools like `log`, `shortlog`
+and `rebase` can get confused if you run the two together.
+
+Explain the problem that this commit is solving. Focus on why you
+are making this change as opposed to how (the code explains that).
+Are there side effects or other unintuitive consequences of this
+change? Here's the place to explain them.
+
+Further paragraphs come after blank lines.
+
+ - Bullet points are okay, too
+
+ - Typically a hyphen or asterisk is used for the bullet, preceded
+   by a single space, with blank lines in between, but conventions
+   vary here
+```
+
+A body isn't required for a small, self-explanatory change — omit it
+rather than padding the commit with restated subject text.
+
 ## Contribution workflow
 
 - Keep commits and pull requests scoped to a single logical change; avoid bundling unrelated fixes.

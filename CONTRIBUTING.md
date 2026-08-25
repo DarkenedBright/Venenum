@@ -7,11 +7,13 @@ Thanks for your interest in working on Venenum. This document covers the project
 | File | Purpose |
 | --- | --- |
 | `src/types.h` | Core enums (`Piece`, `Side`, `Castle`, `Rank`, `File`, `LERFSquare`, `RayDirection`) and the `FancyMagic` struct. |
-| `src/bitboard.h` / `src/bitboard.cpp` | Generic bitboard helpers: `popcount`, `setBit`, `resetBit`, `squareToBitboard` (`constexpr`). |
+| `src/bitboard.h` / `src/bitboard.cpp` | Generic bitboard helpers: `popcount`, `getLSBIndex`, `setBit`, `resetBit`, `squareToBitboard` (`constexpr`). |
 | `src/prng.h` | `PRNG`, a xorshift pseudorandom number generator used for Zobrist key generation. |
-| `src/attack.h` / `src/attack.cpp` | Precomputed pawn/knight/king attack tables and fancy-magic-bitboard sliding-piece (bishop/rook) attack tables, generated entirely at compile time by a `consteval` function; `attack.cpp` exists only to force that generation into the build and guard it with `static_assert`s, since nothing consumes the tables yet. |
-| `src/position.h` / `src/position.cpp` | The `Position` class: FEN parsing, Zobrist hashing, board printing. |
-| `src/uci.h` / `src/uci.cpp` | The UCI protocol command loop and handlers. |
+| `src/attack.h` / `src/attack.cpp` | Precomputed pawn/knight/king attack tables and fancy-magic-bitboard sliding-piece (bishop/rook) attack tables, generated entirely at compile time by a `consteval` function, plus the runtime `Attack::` query API (`pawnAttacks`, `knightAttacks`, `kingAttacks`, `bishopAttacks`, `rookAttacks`, `queenAttacks`, `isSquareAttacked`) that `movegen.cpp` consumes. |
+| `src/move.h` / `src/move.cpp` | The `Move` type — a from/to/`MoveFlag` move packed into 16 bits — and `MoveList`. |
+| `src/movegen.h` / `src/movegen.cpp` | Pseudo-legal move generation per piece kind, `generateLegalMoves`, `perft`, and the UCI move-string parser `parseUCIMove`. |
+| `src/position.h` / `src/position.cpp` | The `Position` class: FEN parsing, Zobrist hashing, board printing, `makeMove`/`unmakeMove`. |
+| `src/uci.h` / `src/uci.cpp` | The UCI protocol command loop and handlers, including `position` (FEN/startpos plus a trailing `moves` list) and the `go perft <depth>` debugging extension. |
 | `src/venenum.cpp` | `main()` — engine startup and initialization. |
 | `tests/` | The test suite (`test_<module>.cpp` per tested `src/` module) and the vendored `doctest.h`. |
 

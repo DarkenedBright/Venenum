@@ -37,9 +37,20 @@ uci
 uciok
 ```
 
+`position` and `go perft` are both implemented, so you can also set up a position and count nodes:
+
+```
+position startpos moves e2e4 e7e5
+go perft 3
+b1a3: 834
+b1c3: 895
+...
+Nodes searched: 24825
+```
+
 ## Current status
 
-Venenum is under active early development. The UCI handshake (`uci`, `isready`) responds correctly, but most gameplay-relevant commands (`position`, `go`, `setoption`, and others) are recognized but not yet implemented — they currently print a warning instead of acting. Move generation and search are not yet implemented, so Venenum cannot yet play a game end-to-end.
+Venenum is under active early development. The UCI handshake (`uci`, `isready`) responds correctly. `position` (both `startpos` and `fen`, with a trailing `moves` list) and `go perft <depth>` are fully implemented on top of a complete, perft-validated legal move generator — pseudo-legal generation for every piece (including castling, en passant, and promotions) filtered to legal moves via make/unmake, plus a UCI move-string parser. Other `go` search modes, `setoption`, and a few other commands are recognized but not yet implemented — they currently print a warning instead of acting. Search and evaluation aren't implemented yet, so Venenum can't choose or play a move on its own — it can track and query a position exactly, but not yet play a game end-to-end.
 
 ## License
 

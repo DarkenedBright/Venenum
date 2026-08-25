@@ -1,5 +1,5 @@
 #include "move.h"
-#include "types.h" // LERFSquare, Piece, Side
+#include "types.h" // LERFSquare, Piece, Side, fileOf, rankOf
 
 #include <cstdint> // std::uint16_t
 #include <string> // std::string
@@ -10,14 +10,12 @@ namespace
 
 [[nodiscard]] char fileChar(LERFSquare square)
 {
-    int file { std::to_underlying(square) % 8 };
-    return static_cast<char>('a' + file);
+    return static_cast<char>('a' + fileOf(std::to_underlying(square)));
 }
 
 [[nodiscard]] char rankChar(LERFSquare square)
 {
-    int rank { std::to_underlying(square) / 8 };
-    return static_cast<char>('1' + rank);
+    return static_cast<char>('1' + rankOf(std::to_underlying(square)));
 }
 
 /*

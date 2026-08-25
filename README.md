@@ -6,7 +6,7 @@ It is licensed under the GNU General Public License v3.0 — see [LICENSE](LICEN
 
 ## Requirements
 
-- A C++ compiler with C++23 support (developed against `g++` with `-std=c++23`)
+- A C++23 compiler. Developed against Apple Clang (`g++`/`clang++` resolve to it on macOS); see the Makefile's `CONSTEXPRFLAGS` comment if building with a different toolchain
 - `make`
 
 ## Building
@@ -50,7 +50,7 @@ Nodes searched: 24825
 
 ## Current status
 
-Venenum is under active early development. The UCI handshake (`uci`, `isready`) responds correctly. `position` (both `startpos` and `fen`, with a trailing `moves` list) and `go perft <depth>` are fully implemented on top of a complete, perft-validated legal move generator — pseudo-legal generation for every piece (including castling, en passant, and promotions) filtered to legal moves via make/unmake, plus a UCI move-string parser. Other `go` search modes, `setoption`, and a few other commands are recognized but not yet implemented — they currently print a warning instead of acting. Search and evaluation aren't implemented yet, so Venenum can't choose or play a move on its own — it can track and query a position exactly, but not yet play a game end-to-end.
+Venenum is under active early development. The UCI handshake (`uci`, `isready`) responds correctly. `position` (both `startpos` and `fen`, with a trailing `moves` list) and `go perft <depth>` are fully implemented on top of a complete, perft-validated legal move generator covering every piece, including castling, en passant, and promotions. Other `go` search modes, `setoption`, and a few other commands are recognized but not yet implemented — they currently print a warning instead of acting. Search and evaluation aren't implemented yet, so Venenum can't choose or play a move on its own — it can track and query a position exactly, but not yet play a game end-to-end.
 
 ## License
 

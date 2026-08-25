@@ -13,7 +13,7 @@ enum class Piece : int
     WHITE_PAWN, WHITE_KNIGHT, WHITE_BISHOP, WHITE_ROOK, WHITE_QUEEN, WHITE_KING,
     BLACK_PAWN, BLACK_KNIGHT, BLACK_BISHOP, BLACK_ROOK, BLACK_QUEEN, BLACK_KING,
     NUM_PIECES,
-    WHITE_ALL = 13, BLACK_ALL, ALL_PIECES,
+    WHITE_ALL = NUM_PIECES, BLACK_ALL, ALL_PIECES,
     NUM_PIECES_ALL
 };
 
@@ -107,6 +107,41 @@ enum class RayDirection : int
     WEST = -1,
     NORTH_WEST = 7
 };
+
+/*
+ * Piece::WHITE_PAWN..WHITE_KING and BLACK_PAWN..BLACK_KING are laid
+ * out as two parallel runs of 6, so the black piece corresponding to
+ * a given white piece is always a fixed offset away. whitePiece must
+ * be one of the WHITE_* enumerators.
+ */
+[[nodiscard]] constexpr Piece sidedPiece(Side side, Piece whitePiece)
+{
+    constexpr int BLACK_OFFSET { std::to_underlying(Piece::BLACK_PAWN) - std::to_underlying(Piece::WHITE_PAWN) };
+    return side == Side::WHITE ? whitePiece : static_cast<Piece>(std::to_underlying(whitePiece) + BLACK_OFFSET);
+}
+
+/*
+ * Piece::WHITE_ALL/BLACK_ALL, the "every piece of this side" bitboard
+ * index -- separate from sidedPiece() since ALL_PIECES sits outside
+ * the WHITE_.../BLACK_... per-piece-kind run and doesn't share its offset.
+ */
+[[nodiscard]] constexpr Piece allPiecesOf(Side side)
+{
+    return side == Side::WHITE ? Piece::WHITE_ALL : Piece::BLACK_ALL;
+}
+
+/*
+ * File/rank of a raw (0-63) LERF square index.
+ */
+[[nodiscard]] constexpr int fileOf(int sq)
+{
+    return sq % std::to_underlying(File::NUM_FILES);
+}
+
+[[nodiscard]] constexpr int rankOf(int sq)
+{
+    return sq / std::to_underlying(File::NUM_FILES);
+}
 
 /*
  * Used for sliding piece attacks. See attack.h. Stores an offset into

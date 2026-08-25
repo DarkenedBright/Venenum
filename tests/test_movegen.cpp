@@ -2,19 +2,14 @@
 #include "move.h" // Move, MoveFlag, MoveList
 #include "movegen.h" // MoveGen::generateKnightMoves, MoveGen::generateKingMoves, MoveGen::generateSlidingMoves, MoveGen::generatePawnMoves, MoveGen::generateLegalMoves, MoveGen::parseUCIMove
 #include "position.h" // Position, STANDARD_START_FEN
+#include "test_helpers.h" // parsePosition
 #include "types.h" // LERFSquare
 
 #include <optional> // std::optional
+#include <string_view> // std::string_view
 
 namespace
 {
-
-[[nodiscard]] Position parsePosition(const std::string& fen)
-{
-    auto result { Position::fromFen(fen) };
-    REQUIRE(result.has_value());
-    return result.value();
-}
 
 [[nodiscard]] int countQuiet(const MoveList& moves)
 {
@@ -55,13 +50,30 @@ namespace
     return count;
 }
 
+using MoveGenerator = void (*)(const Position&, MoveList&);
+
+/*
+ * Parse fen and run generator over the resulting position, collapsing
+ * the Position/MoveList/generate-call boilerplate every pseudo-legal
+ * generator test below otherwise repeats.
+ */
+[[nodiscard]] MoveList generateMoves(std::string_view fen, MoveGenerator generator)
+{
+    Position position { parsePosition(fen) };
+    MoveList moves;
+    generator(position, moves);
+    return moves;
+}
+
+// Both sides retain full castling rights, rooks and king on their
+// home squares, nothing else on the board.
+constexpr std::string_view ROOK_KING_CASTLE_READY_FEN { "8/8/8/8/8/8/8/R3K2R w KQkq - 0 1" };
+
 } // namespace
 
 TEST_CASE("generateKnightMoves produces 8 quiet moves for a lone knight in the center")
 {
-    Position position { parsePosition("8/8/8/8/3N4/8/8/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generateKnightMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/8/3N4/8/8/8 w - - 0 1", MoveGen::generateKnightMoves) };
 
     CHECK(moves.size() == 8);
     CHECK(countQuiet(moves) == 8);
@@ -69,9 +81,7 @@ TEST_CASE("generateKnightMoves produces 8 quiet moves for a lone knight in the c
 
 TEST_CASE("generateKnightMoves produces 2 quiet moves for a lone knight in the corner")
 {
-    Position position { parsePosition("8/8/8/8/8/8/8/N7 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generateKnightMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/8/8/8/8/N7 w - - 0 1", MoveGen::generateKnightMoves) };
 
     CHECK(moves.size() == 2);
     CHECK(countQuiet(moves) == 2);
@@ -79,9 +89,7 @@ TEST_CASE("generateKnightMoves produces 2 quiet moves for a lone knight in the c
 
 TEST_CASE("generateKnightMoves flags an enemy-occupied destination as a capture and excludes an own-occupied one")
 {
-    Position position { parsePosition("8/8/8/1p3P2/3N4/8/8/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generateKnightMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/1p3P2/3N4/8/8/8 w - - 0 1", MoveGen::generateKnightMoves) };
 
     CHECK(moves.size() == 7);
     CHECK(countCaptures(moves) == 1);
@@ -92,9 +100,7 @@ TEST_CASE("generateKnightMoves flags an enemy-occupied destination as a capture 
 
 TEST_CASE("generateKingMoves produces 8 quiet moves for a lone king in the center")
 {
-    Position position { parsePosition("8/8/8/8/4K3/8/8/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generateKingMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/8/4K3/8/8/8 w - - 0 1", MoveGen::generateKingMoves) };
 
     CHECK(moves.size() == 8);
     CHECK(countQuiet(moves) == 8);
@@ -102,9 +108,7 @@ TEST_CASE("generateKingMoves produces 8 quiet moves for a lone king in the cente
 
 TEST_CASE("generateKingMoves flags an enemy-occupied neighbor as a capture and excludes an own-occupied one")
 {
-    Position position { parsePosition("8/8/8/4P3/4K3/3p4/8/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generateKingMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/4P3/4K3/3p4/8/8 w - - 0 1", MoveGen::generateKingMoves) };
 
     CHECK(moves.size() == 7);
     CHECK(countCaptures(moves) == 1);
@@ -114,9 +118,7 @@ TEST_CASE("generateKingMoves flags an enemy-occupied neighbor as a capture and e
 
 TEST_CASE("generateKingMoves generates both castle moves when rights, squares, and safety all allow it")
 {
-    Position position { parsePosition("8/8/8/8/8/8/8/R3K2R w KQkq - 0 1") };
-    MoveList moves;
-    MoveGen::generateKingMoves(position, moves);
+    MoveList moves { generateMoves(ROOK_KING_CASTLE_READY_FEN, MoveGen::generateKingMoves) };
 
     CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE)));
     CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::C1, MoveFlag::QUEEN_CASTLE)));
@@ -124,9 +126,7 @@ TEST_CASE("generateKingMoves generates both castle moves when rights, squares, a
 
 TEST_CASE("generateKingMoves excludes queenside castling when the B-file square is occupied, but keeps kingside")
 {
-    Position position { parsePosition("8/8/8/8/8/8/8/RN2K2R w KQkq - 0 1") };
-    MoveList moves;
-    MoveGen::generateKingMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/8/8/8/8/RN2K2R w KQkq - 0 1", MoveGen::generateKingMoves) };
 
     CHECK_FALSE(contains(moves, Move(LERFSquare::E1, LERFSquare::C1, MoveFlag::QUEEN_CASTLE)));
     CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE)));
@@ -134,19 +134,26 @@ TEST_CASE("generateKingMoves excludes queenside castling when the B-file square 
 
 TEST_CASE("generateKingMoves excludes kingside castling when the transit square is attacked, even though it's empty")
 {
-    Position position { parsePosition("5r2/8/8/8/8/8/8/R3K2R w KQkq - 0 1") };
-    MoveList moves;
-    MoveGen::generateKingMoves(position, moves);
+    MoveList moves { generateMoves("5r2/8/8/8/8/8/8/R3K2R w KQkq - 0 1", MoveGen::generateKingMoves) };
 
     CHECK_FALSE(contains(moves, Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE)));
     CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::C1, MoveFlag::QUEEN_CASTLE)));
 }
 
+TEST_CASE("generateKingMoves excludes kingside castling when only the destination square is attacked, even though the transit square is safe")
+{
+    // Rook g8 covers the empty g-file down to g1 (the castling
+    // destination) but not f1 (the transit square) or e1 (the king's
+    // current square), isolating the destination-square-attacked case
+    // from the transit-square-attacked case covered above.
+    MoveList moves { generateMoves("4k1r1/8/8/8/8/8/8/4K2R w K - 0 1", MoveGen::generateKingMoves) };
+
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE)));
+}
+
 TEST_CASE("generateKingMoves excludes both castle moves when the king is in check")
 {
-    Position position { parsePosition("4r3/8/8/8/8/8/8/R3K2R w KQkq - 0 1") };
-    MoveList moves;
-    MoveGen::generateKingMoves(position, moves);
+    MoveList moves { generateMoves("4r3/8/8/8/8/8/8/R3K2R w KQkq - 0 1", MoveGen::generateKingMoves) };
 
     CHECK_FALSE(contains(moves, Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE)));
     CHECK_FALSE(contains(moves, Move(LERFSquare::E1, LERFSquare::C1, MoveFlag::QUEEN_CASTLE)));
@@ -154,9 +161,7 @@ TEST_CASE("generateKingMoves excludes both castle moves when the king is in chec
 
 TEST_CASE("generateKingMoves only generates the castle side actually granted by castlingRights")
 {
-    Position position { parsePosition("8/8/8/8/8/8/8/R3K2R w Kq - 0 1") };
-    MoveList moves;
-    MoveGen::generateKingMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/8/8/8/8/R3K2R w Kq - 0 1", MoveGen::generateKingMoves) };
 
     CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE)));
     CHECK_FALSE(contains(moves, Move(LERFSquare::E1, LERFSquare::C1, MoveFlag::QUEEN_CASTLE)));
@@ -164,9 +169,7 @@ TEST_CASE("generateKingMoves only generates the castle side actually granted by 
 
 TEST_CASE("generateKingMoves generates both castle moves for black symmetrically")
 {
-    Position position { parsePosition("r3k2r/8/8/8/8/8/8/8 b KQkq - 0 1") };
-    MoveList moves;
-    MoveGen::generateKingMoves(position, moves);
+    MoveList moves { generateMoves("r3k2r/8/8/8/8/8/8/8 b KQkq - 0 1", MoveGen::generateKingMoves) };
 
     CHECK(contains(moves, Move(LERFSquare::E8, LERFSquare::G8, MoveFlag::KING_CASTLE)));
     CHECK(contains(moves, Move(LERFSquare::E8, LERFSquare::C8, MoveFlag::QUEEN_CASTLE)));
@@ -174,9 +177,7 @@ TEST_CASE("generateKingMoves generates both castle moves for black symmetrically
 
 TEST_CASE("generateSlidingMoves produces 14 quiet moves for a lone rook in the open")
 {
-    Position position { parsePosition("8/8/8/8/3R4/8/8/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generateSlidingMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/8/3R4/8/8/8 w - - 0 1", MoveGen::generateSlidingMoves) };
 
     CHECK(moves.size() == 14);
     CHECK(countQuiet(moves) == 14);
@@ -184,9 +185,7 @@ TEST_CASE("generateSlidingMoves produces 14 quiet moves for a lone rook in the o
 
 TEST_CASE("generateSlidingMoves stops a rook at the first blocker in each direction")
 {
-    Position position { parsePosition("8/8/3P4/8/3R1p2/8/8/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generateSlidingMoves(position, moves);
+    MoveList moves { generateMoves("8/8/3P4/8/3R1p2/8/8/8 w - - 0 1", MoveGen::generateSlidingMoves) };
 
     CHECK(moves.size() == 9);
     CHECK(countQuiet(moves) == 8);
@@ -200,9 +199,7 @@ TEST_CASE("generateSlidingMoves stops a rook at the first blocker in each direct
 
 TEST_CASE("generateSlidingMoves produces 13 quiet moves for a lone bishop in the center")
 {
-    Position position { parsePosition("8/8/8/8/3B4/8/8/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generateSlidingMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/8/3B4/8/8/8 w - - 0 1", MoveGen::generateSlidingMoves) };
 
     CHECK(moves.size() == 13);
     CHECK(countQuiet(moves) == 13);
@@ -210,9 +207,7 @@ TEST_CASE("generateSlidingMoves produces 13 quiet moves for a lone bishop in the
 
 TEST_CASE("generateSlidingMoves stops a bishop at the first blocker in each diagonal direction")
 {
-    Position position { parsePosition("8/8/5p2/8/3B4/8/1P6/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generateSlidingMoves(position, moves);
+    MoveList moves { generateMoves("8/8/5p2/8/3B4/8/1P6/8 w - - 0 1", MoveGen::generateSlidingMoves) };
 
     CHECK(moves.size() == 9);
     CHECK(countQuiet(moves) == 8);
@@ -225,9 +220,7 @@ TEST_CASE("generateSlidingMoves stops a bishop at the first blocker in each diag
 
 TEST_CASE("generateSlidingMoves produces 27 quiet moves for a lone queen in the center")
 {
-    Position position { parsePosition("8/8/8/8/3Q4/8/8/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generateSlidingMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/8/3Q4/8/8/8 w - - 0 1", MoveGen::generateSlidingMoves) };
 
     CHECK(moves.size() == 27);
     CHECK(countQuiet(moves) == 27);
@@ -235,9 +228,7 @@ TEST_CASE("generateSlidingMoves produces 27 quiet moves for a lone queen in the 
 
 TEST_CASE("generateSlidingMoves respects blockers on both the orthogonal and diagonal lines of a queen")
 {
-    Position position { parsePosition("8/8/3P1p2/8/3Q4/8/8/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generateSlidingMoves(position, moves);
+    MoveList moves { generateMoves("8/8/3P1p2/8/3Q4/8/8/8 w - - 0 1", MoveGen::generateSlidingMoves) };
 
     CHECK(countCaptures(moves) == 1);
     CHECK(contains(moves, Move(LERFSquare::D4, LERFSquare::F6, MoveFlag::CAPTURE)));
@@ -248,9 +239,7 @@ TEST_CASE("generateSlidingMoves respects blockers on both the orthogonal and dia
 
 TEST_CASE("generatePawnMoves produces a single push and a double push from the starting rank")
 {
-    Position position { parsePosition("8/8/8/8/8/8/4P3/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generatePawnMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/8/8/8/4P3/8 w - - 0 1", MoveGen::generatePawnMoves) };
 
     CHECK(moves.size() == 2);
     CHECK(contains(moves, Move(LERFSquare::E2, LERFSquare::E3, MoveFlag::QUIET)));
@@ -259,18 +248,26 @@ TEST_CASE("generatePawnMoves produces a single push and a double push from the s
 
 TEST_CASE("generatePawnMoves generates no push (single or double) when the square ahead is blocked")
 {
-    Position position { parsePosition("8/8/8/8/8/4p3/4P3/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generatePawnMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/8/8/4p3/4P3/8 w - - 0 1", MoveGen::generatePawnMoves) };
 
     CHECK(moves.empty());
 }
 
+TEST_CASE("generatePawnMoves generates the single push but not the double push when only the second square ahead is blocked")
+{
+    // e3 is empty (single push legal) but e4 is occupied, so only the
+    // single push should be generated -- distinct from both squares
+    // being blocked (covered above) and neither being blocked.
+    MoveList moves { generateMoves("8/8/8/8/4n3/8/4P3/8 w - - 0 1", MoveGen::generatePawnMoves) };
+
+    CHECK(moves.size() == 1);
+    CHECK(contains(moves, Move(LERFSquare::E2, LERFSquare::E3, MoveFlag::QUIET)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E2, LERFSquare::E4, MoveFlag::DOUBLE_PAWN_PUSH)));
+}
+
 TEST_CASE("generatePawnMoves produces all four promotion flags for a push onto the last rank")
 {
-    Position position { parsePosition("8/4P3/8/8/8/8/8/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generatePawnMoves(position, moves);
+    MoveList moves { generateMoves("8/4P3/8/8/8/8/8/8 w - - 0 1", MoveGen::generatePawnMoves) };
 
     CHECK(moves.size() == 4);
     CHECK(countPromotions(moves) == 4);
@@ -283,9 +280,7 @@ TEST_CASE("generatePawnMoves produces all four promotion flags for a push onto t
 
 TEST_CASE("generatePawnMoves flags non-promotion-rank diagonal captures as CAPTURE alongside an unblocked push")
 {
-    Position position { parsePosition("8/8/3p1p2/4P3/8/8/8/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generatePawnMoves(position, moves);
+    MoveList moves { generateMoves("8/8/3p1p2/4P3/8/8/8/8 w - - 0 1", MoveGen::generatePawnMoves) };
 
     CHECK(moves.size() == 3);
     CHECK(countQuiet(moves) == 1);
@@ -297,9 +292,7 @@ TEST_CASE("generatePawnMoves flags non-promotion-rank diagonal captures as CAPTU
 
 TEST_CASE("generatePawnMoves produces all four promotion-capture flags for a capture onto the last rank")
 {
-    Position position { parsePosition("3n1n2/4P3/8/8/8/8/8/8 w - - 0 1") };
-    MoveList moves;
-    MoveGen::generatePawnMoves(position, moves);
+    MoveList moves { generateMoves("3n1n2/4P3/8/8/8/8/8/8 w - - 0 1", MoveGen::generatePawnMoves) };
 
     CHECK(moves.size() == 12);
     CHECK(countPromotions(moves) == 12);
@@ -311,9 +304,7 @@ TEST_CASE("generatePawnMoves produces all four promotion-capture flags for a cap
 
 TEST_CASE("generatePawnMoves produces an en passant capture when the target square matches getEnPassantSquare")
 {
-    Position position { parsePosition("8/8/8/3pP3/8/8/8/8 w - d6 0 1") };
-    MoveList moves;
-    MoveGen::generatePawnMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/3pP3/8/8/8/8 w - d6 0 1", MoveGen::generatePawnMoves) };
 
     CHECK(moves.size() == 2);
     CHECK(contains(moves, Move(LERFSquare::E5, LERFSquare::E6, MoveFlag::QUIET)));
@@ -322,9 +313,7 @@ TEST_CASE("generatePawnMoves produces an en passant capture when the target squa
 
 TEST_CASE("generatePawnMoves pushes black pawns toward rank 1")
 {
-    Position position { parsePosition("8/4p3/8/8/8/8/8/8 b - - 0 1") };
-    MoveList moves;
-    MoveGen::generatePawnMoves(position, moves);
+    MoveList moves { generateMoves("8/4p3/8/8/8/8/8/8 b - - 0 1", MoveGen::generatePawnMoves) };
 
     CHECK(moves.size() == 2);
     CHECK(contains(moves, Move(LERFSquare::E7, LERFSquare::E6, MoveFlag::QUIET)));
@@ -333,9 +322,7 @@ TEST_CASE("generatePawnMoves pushes black pawns toward rank 1")
 
 TEST_CASE("generatePawnMoves captures diagonally toward rank 1 for black")
 {
-    Position position { parsePosition("8/8/8/4p3/3P1P2/8/8/8 b - - 0 1") };
-    MoveList moves;
-    MoveGen::generatePawnMoves(position, moves);
+    MoveList moves { generateMoves("8/8/8/4p3/3P1P2/8/8/8 b - - 0 1", MoveGen::generatePawnMoves) };
 
     CHECK(moves.size() == 3);
     CHECK(countQuiet(moves) == 1);
@@ -347,8 +334,7 @@ TEST_CASE("generatePawnMoves captures diagonally toward rank 1 for black")
 
 TEST_CASE("generateLegalMoves produces exactly 20 moves from the starting position")
 {
-    Position position { parsePosition(STANDARD_START_FEN) };
-    MoveList moves { MoveGen::generateLegalMoves(position) };
+    MoveList moves { MoveGen::generateLegalMoves(parsePosition(STANDARD_START_FEN)) };
 
     CHECK(moves.size() == 20);
 }
@@ -357,8 +343,7 @@ TEST_CASE("generateLegalMoves in check keeps only moves that capture, block, or 
 {
     // White king e1 in check from a black rook on e8 along the open e-file.
     // Queen d1 can block on e2; knight b1 can neither block nor capture.
-    Position position { parsePosition("4r3/8/8/8/8/8/8/1N1QK3 w - - 0 1") };
-    MoveList moves { MoveGen::generateLegalMoves(position) };
+    MoveList moves { MoveGen::generateLegalMoves(parsePosition("4r3/8/8/8/8/8/8/1N1QK3 w - - 0 1")) };
 
     CHECK(moves.size() == 4);
     CHECK(contains(moves, Move(LERFSquare::D1, LERFSquare::E2, MoveFlag::QUIET))); // queen blocks the check
@@ -377,8 +362,7 @@ TEST_CASE("generateLegalMoves excludes moves that walk an absolutely pinned piec
     // while the king itself may still freely move (including onto the
     // e-file at e2, since the bishop is still there to block until it
     // is the piece that moves).
-    Position position { parsePosition("4r3/8/8/8/8/4B3/8/4K3 w - - 0 1") };
-    MoveList moves { MoveGen::generateLegalMoves(position) };
+    MoveList moves { MoveGen::generateLegalMoves(parsePosition("4r3/8/8/8/8/4B3/8/4K3 w - - 0 1")) };
 
     CHECK(moves.size() == 5);
     CHECK_FALSE(contains(moves, Move(LERFSquare::E3, LERFSquare::D4, MoveFlag::QUIET)));
@@ -386,6 +370,53 @@ TEST_CASE("generateLegalMoves excludes moves that walk an absolutely pinned piec
     CHECK_FALSE(contains(moves, Move(LERFSquare::E3, LERFSquare::F4, MoveFlag::QUIET)));
     CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::D1, MoveFlag::QUIET)));
     CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::E2, MoveFlag::QUIET)));
+}
+
+TEST_CASE("generateLegalMoves is empty in checkmate")
+{
+    // Fool's Mate: 1. f3 e5 2. g4 Qh4#. The queen checks along the
+    // undefended g3-f2-e1 diagonal, and White has no capture, block,
+    // or king move that escapes it.
+    MoveList moves { MoveGen::generateLegalMoves(parsePosition("rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3")) };
+
+    CHECK(moves.empty());
+}
+
+TEST_CASE("generateLegalMoves is empty in stalemate")
+{
+    // The textbook stalemate: Black king a8 has no legal move (a7, b7,
+    // and b8 are all covered by the queen on b6) but isn't itself in
+    // check, so this must be distinguished from checkmate by callers.
+    MoveList moves { MoveGen::generateLegalMoves(parsePosition("k7/8/1Q6/8/8/8/8/7K b - - 0 1")) };
+
+    CHECK(moves.empty());
+}
+
+TEST_CASE("generateLegalMoves under double check only allows king moves")
+{
+    // Black king e5 attacked simultaneously by the rook on e1 (open
+    // e-file) and the bishop on b2 (open diagonal): a genuine double
+    // check, where capturing or blocking either single attacker still
+    // leaves the other giving check, so only king moves can be legal.
+    MoveList moves { MoveGen::generateLegalMoves(parsePosition("8/8/8/4k3/8/8/1B6/4R2K b - - 0 1")) };
+
+    CHECK_FALSE(moves.empty());
+    for(Move move : moves)
+    {
+        CHECK(move.from() == LERFSquare::E5);
+    }
+}
+
+TEST_CASE("generateLegalMoves excludes an en passant capture that exposes the king to a discovered check along the vacated rank")
+{
+    // White king b5 and Black rook h5 are on the same rank, separated
+    // only by the White pawn on e5 and the Black pawn on f5. Capturing
+    // e5xf6 e.p. removes both pawns from rank 5 at once, opening the
+    // rook's file straight onto the king -- a discovered check the
+    // move itself causes, which generateLegalMoves must still catch.
+    MoveList moves { MoveGen::generateLegalMoves(parsePosition("4k3/8/8/1K2Pp1r/8/8/8/8 w - f6 0 1")) };
+
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E5, LERFSquare::F6, MoveFlag::EP_CAPTURE)));
 }
 
 TEST_CASE("parseUCIMove parses a double pawn push from the starting position")
@@ -412,11 +443,29 @@ TEST_CASE("parseUCIMove parses a queen promotion, including an uppercase promoti
 
 TEST_CASE("parseUCIMove parses a castle move from a castle-ready position")
 {
-    Position position { parsePosition("8/8/8/8/8/8/8/R3K2R w KQkq - 0 1") };
+    Position position { parsePosition(ROOK_KING_CASTLE_READY_FEN) };
     std::optional<Move> move { MoveGen::parseUCIMove(position, "e1g1") };
 
     REQUIRE(move.has_value());
     CHECK(move.value() == Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE));
+}
+
+TEST_CASE("parseUCIMove parses a capture move")
+{
+    Position position { parsePosition("7k/8/8/3p4/4P3/8/8/4K3 w - - 0 1") };
+    std::optional<Move> move { MoveGen::parseUCIMove(position, "e4d5") };
+
+    REQUIRE(move.has_value());
+    CHECK(move.value() == Move(LERFSquare::E4, LERFSquare::D5, MoveFlag::CAPTURE));
+}
+
+TEST_CASE("parseUCIMove parses an en passant capture")
+{
+    Position position { parsePosition("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1") };
+    std::optional<Move> move { MoveGen::parseUCIMove(position, "e5d6") };
+
+    REQUIRE(move.has_value());
+    CHECK(move.value() == Move(LERFSquare::E5, LERFSquare::D6, MoveFlag::EP_CAPTURE));
 }
 
 TEST_CASE("parseUCIMove returns std::nullopt for a malformed or illegal move string")

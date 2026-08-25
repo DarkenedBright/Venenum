@@ -193,6 +193,42 @@ void commandPosition(std::istringstream& uciStringStream)
 }
 
 /*
+ * go perft <depth>
+ * Not part of the standard UCI protocol, but a widely-supported
+ * engine debugging extension: divide the perft node count at depth
+ * by root move, printing each root move's subtree count followed by
+ * the total, so a GUI or script can bisect a move-generator bug
+ * against a reference engine's per-move counts. See
+ * https://www.chessprogramming.org/Perft#Divide.
+ */
+void commandGoPerft(std::istringstream& uciStringStream)
+{
+    int depth {};
+    uciStringStream >> depth;
+
+    if(!currentPosition || depth < 1)
+    {
+        std::println(std::cout, "WARNING: 'go perft' requires a position and a depth >= 1");
+        return;
+    }
+
+    MoveList legalMoves { MoveGen::generateLegalMoves(*currentPosition) };
+    std::uint64_t totalNodes { 0 };
+    for(Move move : legalMoves)
+    {
+        UnmakeState saved { currentPosition->makeMove(move) };
+        std::uint64_t nodes { MoveGen::perft(*currentPosition, depth - 1) };
+        currentPosition->unmakeMove(move, saved);
+
+        std::println(std::cout, "{}: {}", move.toUCIString(), nodes);
+        totalNodes += nodes;
+    }
+
+    std::println(std::cout, "");
+    std::println(std::cout, "Nodes searched: {}", totalNodes);
+}
+
+/*
  * go
  * start calculating on the current position set up with the "position" command.
  * There are a number of commands that can follow this command, all will be sent in the same string.
@@ -234,42 +270,6 @@ void commandPosition(std::istringstream& uciStringStream)
  * * infinite
  *     search until the "stop" command. Do not exit the search without being told so in this mode!
  */
-/*
- * go perft <depth>
- * Not part of the standard UCI protocol, but a widely-supported
- * engine debugging extension: divide the perft node count at depth
- * by root move, printing each root move's subtree count followed by
- * the total, so a GUI or script can bisect a move-generator bug
- * against a reference engine's per-move counts. See
- * https://www.chessprogramming.org/Perft#Divide.
- */
-void commandGoPerft(std::istringstream& uciStringStream)
-{
-    int depth {};
-    uciStringStream >> depth;
-
-    if(!currentPosition || depth < 1)
-    {
-        std::println(std::cout, "WARNING: 'go perft' requires a position and a depth >= 1");
-        return;
-    }
-
-    MoveList legalMoves { MoveGen::generateLegalMoves(*currentPosition) };
-    std::uint64_t totalNodes { 0 };
-    for(Move move : legalMoves)
-    {
-        UnmakeState saved { currentPosition->makeMove(move) };
-        std::uint64_t nodes { MoveGen::perft(*currentPosition, depth - 1) };
-        currentPosition->unmakeMove(move, saved);
-
-        std::println(std::cout, "{}: {}", move.toUCIString(), nodes);
-        totalNodes += nodes;
-    }
-
-    std::println(std::cout, "");
-    std::println(std::cout, "Nodes searched: {}", totalNodes);
-}
-
 void commandGo(std::istringstream& uciStringStream)
 {
     std::string uciPart {};
@@ -304,15 +304,6 @@ void commandPonderHit()
     std::println(std::cout, "WARNING: Command 'ponderhit' is not implemented.");
 }
 
-/*
- * quit
- * quit the program as soon as possible
- */
-void commandQuit()
-{
-    std::println(std::cout, "WARNING: Command 'quit' is not implemented.");
-}
-
 } // namespace
 
 void readConsole()
@@ -321,7 +312,7 @@ void readConsole()
     std::string uciPart {};
     while(true)
     {
-        std::getline(std::cin >> std::ws, line);
+        if(!std::getline(std::cin >> std::ws, line)) break;
         std::istringstream uciStringStream { line };
         uciStringStream >> uciPart;
 
@@ -335,10 +326,8 @@ void readConsole()
         else if(uciPart == "go") commandGo(uciStringStream);
         else if(uciPart == "stop") commandStop();
         else if(uciPart == "ponderhit") commandPonderHit();
-        else if(uciPart == "quit")
-        {
-            commandQuit();
-            break;
-        }
+        // quit: not a separate command handler since there is no
+        // dedicated behavior to run beyond ending the read loop.
+        else if(uciPart == "quit") break;
     }
 }

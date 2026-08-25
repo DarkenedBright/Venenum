@@ -2,22 +2,20 @@
 #include "doctest.h" // TEST_CASE, CHECK, REQUIRE
 #include "move.h" // Move, MoveFlag
 #include "position.h" // Position, FenParseError, describe, STANDARD_START_FEN, UnmakeState
+#include "test_helpers.h" // parsePosition
 #include "types.h" // U64, Piece, Side, Castle, LERFSquare
 
 #include <cstddef> // std::size_t
 #include <iterator> // std::size
-#include <string> // std::string
+#include <string_view> // std::string_view
 #include <utility> // std::to_underlying
 
 namespace
 {
 
-[[nodiscard]] Position parsePosition(const std::string& fen)
-{
-    auto result { Position::fromFen(fen) };
-    REQUIRE(result.has_value());
-    return result.value();
-}
+// White pawn on e5 can capture en passant onto d6 against a black
+// pawn that just double-pushed to d5.
+constexpr std::string_view EN_PASSANT_READY_FEN { "8/8/8/3pP3/8/8/8/8 w - d6 0 1" };
 
 } // namespace
 
@@ -254,7 +252,7 @@ TEST_CASE("makeMove on a capture removes the captured piece and reports it in th
 
 TEST_CASE("makeMove on an en passant capture removes the pawn behind the destination square")
 {
-    Position position { parsePosition("8/8/8/3pP3/8/8/8/8 w - d6 0 1") };
+    Position position { parsePosition(EN_PASSANT_READY_FEN) };
     UnmakeState saved { position.makeMove(Move(LERFSquare::E5, LERFSquare::D6, MoveFlag::EP_CAPTURE)) };
 
     CHECK(saved.capturedPiece == Piece::BLACK_PAWN);
@@ -314,6 +312,22 @@ TEST_CASE("makeMove clears a rook's castling right when it is captured on its ho
     CHECK(position.getCastlingRights() == Castle::WHITE_KING_CASTLE);
 }
 
+TEST_CASE("makeMove clears both of a side's castling rights on a plain king move, not just an actual castle")
+{
+    Position position { parsePosition("r3k3/8/8/8/8/8/8/R3K3 w KQq - 0 1") };
+    [[maybe_unused]] UnmakeState saved { position.makeMove(Move(LERFSquare::E1, LERFSquare::E2, MoveFlag::QUIET)) };
+
+    CHECK(position.getCastlingRights() == Castle::BLACK_QUEEN_CASTLE);
+}
+
+TEST_CASE("makeMove clears only the moved rook's side when it moves off its home square without being captured")
+{
+    Position position { parsePosition("r3k3/8/8/8/8/8/8/R3K3 w KQq - 0 1") };
+    [[maybe_unused]] UnmakeState saved { position.makeMove(Move(LERFSquare::A1, LERFSquare::B1, MoveFlag::QUIET)) };
+
+    CHECK(position.getCastlingRights() == (Castle::WHITE_KING_CASTLE | Castle::BLACK_QUEEN_CASTLE));
+}
+
 TEST_CASE("makeMove increments the fifty-move count on a non-pawn, non-capture move")
 {
     Position position { parsePosition("8/8/8/8/8/8/8/N7 w - - 5 1") };
@@ -324,12 +338,12 @@ TEST_CASE("makeMove increments the fifty-move count on a non-pawn, non-capture m
 
 TEST_CASE("unmakeMove is a perfect inverse of makeMove across every move kind")
 {
-    struct Case { std::string fen; Move move; };
+    struct Case { std::string_view fen; Move move; };
     Case cases[] {
         { STANDARD_START_FEN, Move(LERFSquare::B1, LERFSquare::C3, MoveFlag::QUIET) },
         { STANDARD_START_FEN, Move(LERFSquare::E2, LERFSquare::E4, MoveFlag::DOUBLE_PAWN_PUSH) },
         { "8/8/8/3n4/4P3/8/8/8 w - - 12 1", Move(LERFSquare::E4, LERFSquare::D5, MoveFlag::CAPTURE) },
-        { "8/8/8/3pP3/8/8/8/8 w - d6 0 1", Move(LERFSquare::E5, LERFSquare::D6, MoveFlag::EP_CAPTURE) },
+        { EN_PASSANT_READY_FEN, Move(LERFSquare::E5, LERFSquare::D6, MoveFlag::EP_CAPTURE) },
         { "8/8/8/8/8/8/8/4K2R w KQ - 0 1", Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE) },
         { "r3k3/8/8/8/8/8/8/8 b q - 0 1", Move(LERFSquare::E8, LERFSquare::C8, MoveFlag::QUEEN_CASTLE) },
         { "8/4P3/8/8/8/8/8/8 w - - 0 1", Move(LERFSquare::E7, LERFSquare::E8, MoveFlag::QUEEN_PROMO) },
@@ -355,5 +369,31 @@ TEST_CASE("unmakeMove is a perfect inverse of makeMove across every move kind")
         CHECK(after.getFiftyMovesCount() == before.getFiftyMovesCount());
         CHECK(after.getPly() == before.getPly());
         CHECK(after.getPositionIdentity() == before.getPositionIdentity());
+    }
+}
+
+TEST_CASE("makeMove keeps getPositionIdentity in sync with a fresh calculatePositionHash")
+{
+    struct Case { std::string_view fen; Move move; };
+    Case cases[] {
+        { STANDARD_START_FEN, Move(LERFSquare::B1, LERFSquare::C3, MoveFlag::QUIET) },
+        { STANDARD_START_FEN, Move(LERFSquare::E2, LERFSquare::E4, MoveFlag::DOUBLE_PAWN_PUSH) },
+        { "8/8/8/3n4/4P3/8/8/8 w - - 12 1", Move(LERFSquare::E4, LERFSquare::D5, MoveFlag::CAPTURE) },
+        { EN_PASSANT_READY_FEN, Move(LERFSquare::E5, LERFSquare::D6, MoveFlag::EP_CAPTURE) },
+        { "8/8/8/8/8/8/8/4K2R w KQ - 0 1", Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE) },
+        { "r3k3/8/8/8/8/8/8/8 b q - 0 1", Move(LERFSquare::E8, LERFSquare::C8, MoveFlag::QUEEN_CASTLE) },
+        { "8/4P3/8/8/8/8/8/8 w - - 0 1", Move(LERFSquare::E7, LERFSquare::E8, MoveFlag::QUEEN_PROMO) },
+        { "4n3/3P4/8/8/8/8/8/8 w - - 0 1", Move(LERFSquare::D7, LERFSquare::E8, MoveFlag::QUEEN_PROMO_CAPTURE) },
+        // Rook captured on its home square: exercises the castling-rights key transition.
+        { "r3k3/8/8/8/8/8/8/R3K3 w KQq - 0 1", Move(LERFSquare::A1, LERFSquare::A8, MoveFlag::CAPTURE) },
+        // Plain king move: clears both castling rights on its side without castling.
+        { "r3k3/8/8/8/8/8/8/R3K3 w KQq - 0 1", Move(LERFSquare::E1, LERFSquare::E2, MoveFlag::QUIET) },
+    };
+
+    for(const Case& testCase : cases)
+    {
+        Position position { parsePosition(testCase.fen) };
+        [[maybe_unused]] UnmakeState saved { position.makeMove(testCase.move) };
+        CHECK(position.getPositionIdentity() == position.calculatePositionHash());
     }
 }

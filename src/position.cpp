@@ -2,14 +2,15 @@
 #include "move.h" // Move, MoveFlag
 #include "position.h"
 #include "prng.h" // PRNG
-#include "types.h" // U64, Piece, LERFSquare, File, Rank, Side, Castle, RayDirection
+#include "types.h" // U64, Piece, LERFSquare, File, Rank, Side, Castle, RayDirection, sidedPiece, allPiecesOf, fileOf, rankOf
 
 #include <cctype> // std::isspace(), std::isdigit()
+#include <cstddef> // std::size_t
 #include <expected> // std::expected, std::unexpected
 #include <ios> // std::skipws, std::noskipws
 #include <print> // std::print, std::println
 #include <sstream> // std::istringstream
-#include <string> // std::string, std::string::npos, std::size_t
+#include <string> // std::string
 #include <string_view> // std::string_view, std::string_view::npos
 #include <utility> // std::to_underlying
 
@@ -111,10 +112,10 @@ void Position::initZobristPositionKeys()
     }
 }
 
-std::expected<Position, FenParseError> Position::fromFen(const std::string& fenString)
+std::expected<Position, FenParseError> Position::fromFen(std::string_view fenString)
 {
     Position position {};
-    std::istringstream fenStringStream { fenString };
+    std::istringstream fenStringStream { std::string(fenString) };
 
     constexpr std::string_view validPieceChars { "PNBRQKpnbrqk" };
     constexpr std::string_view validCastlingChars { "KQkq-" };
@@ -135,12 +136,12 @@ std::expected<Position, FenParseError> Position::fromFen(const std::string& fenS
      * upper-case letters ("PNBRQK") while black pieces use lowercase ("pnbrqk"). Empty squares are noted using digits 1 through 8
      * (the number of empty squares), and "/" separates ranks.
      */
-    while((fenStringStream >> fenChar) && !std::isspace(fenChar))
+    while((fenStringStream >> fenChar) && !std::isspace(static_cast<unsigned char>(fenChar)))
     {
-        if(!std::isdigit(fenChar) && fenChar != '/' && validPieceChars.find(fenChar) == std::string_view::npos)
+        if(!std::isdigit(static_cast<unsigned char>(fenChar)) && fenChar != '/' && validPieceChars.find(fenChar) == std::string_view::npos)
             return std::unexpected(FenParseError::InvalidPiecePlacementChar);
 
-        if(std::isdigit(fenChar))
+        if(std::isdigit(static_cast<unsigned char>(fenChar)))
         {
             // Move along rank by given number of empty squares
             int moveCount { fenChar - '0' };
@@ -171,12 +172,13 @@ std::expected<Position, FenParseError> Position::fromFen(const std::string& fenS
                 return std::unexpected(FenParseError::InvalidPiecePlacementRankLength);
 
             // Get the Piece enum from character in FEN
-            std::size_t pieceIndex = pieceToChar.find(fenChar);
-            if(pieceIndex == std::string::npos || pieceIndex >= std::to_underlying(Piece::NUM_PIECES))
+            std::size_t pieceIndex { pieceToChar.find(fenChar) };
+            if(pieceIndex == std::string_view::npos || pieceIndex >= std::to_underlying(Piece::NUM_PIECES))
                 return std::unexpected(FenParseError::InvalidPieceChar);
 
-            // Update Piece Bitboards
+            // Update Piece Bitboards and mailbox
             position.pieceBitboards[pieceIndex] |= squareToBitboard(sq);
+            position.pieceOnSquare[static_cast<std::size_t>(sq)] = static_cast<Piece>(pieceIndex);
             ++sq;
             ++rankSquareCount;
         }
@@ -200,7 +202,7 @@ std::expected<Position, FenParseError> Position::fromFen(const std::string& fenS
         return std::unexpected(FenParseError::InvalidActiveColorChar);
     position.sideToMove = (fenChar == 'w') ? Side::WHITE : Side::BLACK;
     fenStringStream >> fenChar;
-    if(!std::isspace(fenChar))
+    if(!std::isspace(static_cast<unsigned char>(fenChar)))
         return std::unexpected(FenParseError::MissingFieldSeparator);
 
     /*
@@ -208,7 +210,7 @@ std::expected<Position, FenParseError> Position::fromFen(const std::string& fenS
      * "K" (White can castle kingside), "Q" (White can castle queenside), "k" (Black can castle kingside),
      * and/or "q" (Black can castle queenside). A move that temporarily prevents castling does not negate this notation.
      */
-    while((fenStringStream >> fenChar) && !std::isspace(fenChar))
+    while((fenStringStream >> fenChar) && !std::isspace(static_cast<unsigned char>(fenChar)))
     {
         if(validCastlingChars.find(fenChar) == std::string_view::npos)
             return std::unexpected(FenParseError::InvalidCastlingChar);
@@ -245,23 +247,32 @@ std::expected<Position, FenParseError> Position::fromFen(const std::string& fenS
     }
     else
     {
-        std::size_t fileIndex = fileToChar.find(fenChar);
-        if(fileIndex == std::string::npos || fileIndex >= std::to_underlying(File::NUM_FILES))
+        std::size_t fileIndex { fileToChar.find(fenChar) };
+        if(fileIndex == std::string_view::npos || fileIndex >= std::to_underlying(File::NUM_FILES))
             return std::unexpected(FenParseError::InvalidEnPassantFile);
 
         fenStringStream >> fenChar;
 
-        std::size_t rankIndex = rankToChar.find(fenChar);
-        if(rankIndex == std::string::npos || rankIndex >= std::to_underlying(Rank::NUM_RANKS))
+        std::size_t rankIndex { rankToChar.find(fenChar) };
+        if(rankIndex == std::string_view::npos || rankIndex >= std::to_underlying(Rank::NUM_RANKS))
             return std::unexpected(FenParseError::InvalidEnPassantRank);
 
         std::size_t epSq { rankIndex * 8 + fileIndex };
         if(epSq > std::to_underlying(LERFSquare::H8))
             return std::unexpected(FenParseError::InvalidEnPassantSquare);
+
+        // An en passant target can only be on the rank directly behind
+        // a double-pushed pawn of the side that just moved, i.e. rank 3
+        // if White just pushed (Black to move) or rank 6 if Black just
+        // pushed (White to move).
+        int expectedRank { position.sideToMove == Side::WHITE ? std::to_underlying(Rank::RANK_6) : std::to_underlying(Rank::RANK_3) };
+        if(static_cast<int>(rankIndex) != expectedRank)
+            return std::unexpected(FenParseError::InvalidEnPassantSquare);
+
         position.enPassantSquare = static_cast<LERFSquare>(epSq);
     }
     fenStringStream >> fenChar;
-    if(!std::isspace(fenChar))
+    if(!std::isspace(static_cast<unsigned char>(fenChar)))
         return std::unexpected(FenParseError::MissingFieldSeparator);
 
     // 5. Halfmove clock: The number of halfmoves since the last capture or pawn advance, used for the fifty-move rule.
@@ -315,7 +326,7 @@ U64 Position::calculatePositionHash() const
     //Handle enPassant File
     if(this->enPassantSquare != LERFSquare::NO_SQ)
     {
-        int file = std::to_underlying(this->enPassantSquare) % 8;
+        int file { fileOf(std::to_underlying(this->enPassantSquare)) };
         hash ^= this->enPassantFileKeys[file];
     }
 
@@ -392,33 +403,49 @@ void Position::print() const
 
 Piece Position::pieceOn(LERFSquare square) const
 {
-    U64 bit { squareToBitboard(std::to_underlying(square)) };
-    for(int pieceType { std::to_underlying(Piece::WHITE_PAWN) }; pieceType <= std::to_underlying(Piece::BLACK_KING); ++pieceType)
-    {
-        if(this->pieceBitboards[pieceType] & bit)
-            return static_cast<Piece>(pieceType);
-    }
-    return Piece::EMPTY;
+    return this->pieceOnSquare[std::to_underlying(square)];
 }
 
+/*
+ * Alongside the bitboard/mailbox bookkeeping, incrementally maintains
+ * positionIdentity: square must be empty on entry (every call site
+ * removes whatever was on the destination first), so this XORs out
+ * the square's "empty" key and XORs in its new piece key -- see
+ * calculatePositionHash(), which folds an empty square's key into the
+ * hash exactly like an occupied one.
+ */
 void Position::addPiece(Piece piece, LERFSquare square)
 {
     U64 bit { squareToBitboard(std::to_underlying(square)) };
-    Piece allSide { pieceSide(piece) == Side::WHITE ? Piece::WHITE_ALL : Piece::BLACK_ALL };
+    Piece allSide { allPiecesOf(pieceSide(piece)) };
     this->pieceBitboards[std::to_underlying(piece)] |= bit;
     this->pieceBitboards[std::to_underlying(allSide)] |= bit;
     this->pieceBitboards[std::to_underlying(Piece::ALL_PIECES)] |= bit;
     this->pieceBitboards[std::to_underlying(Piece::EMPTY)] &= ~bit;
+    this->pieceOnSquare[std::to_underlying(square)] = piece;
+
+    std::size_t sq { static_cast<std::size_t>(std::to_underlying(square)) };
+    this->positionIdentity ^= this->pieceSquareKeys[sq][std::to_underlying(Piece::EMPTY)];
+    this->positionIdentity ^= this->pieceSquareKeys[sq][std::to_underlying(piece)];
 }
 
+/*
+ * See addPiece()'s comment: the mirror-image incremental hash update,
+ * XORing out square's piece key and XORing in its new "empty" key.
+ */
 void Position::removePiece(Piece piece, LERFSquare square)
 {
     U64 bit { squareToBitboard(std::to_underlying(square)) };
-    Piece allSide { pieceSide(piece) == Side::WHITE ? Piece::WHITE_ALL : Piece::BLACK_ALL };
+    Piece allSide { allPiecesOf(pieceSide(piece)) };
     this->pieceBitboards[std::to_underlying(piece)] &= ~bit;
     this->pieceBitboards[std::to_underlying(allSide)] &= ~bit;
     this->pieceBitboards[std::to_underlying(Piece::ALL_PIECES)] &= ~bit;
     this->pieceBitboards[std::to_underlying(Piece::EMPTY)] |= bit;
+    this->pieceOnSquare[std::to_underlying(square)] = Piece::EMPTY;
+
+    std::size_t sq { static_cast<std::size_t>(std::to_underlying(square)) };
+    this->positionIdentity ^= this->pieceSquareKeys[sq][std::to_underlying(piece)];
+    this->positionIdentity ^= this->pieceSquareKeys[sq][std::to_underlying(Piece::EMPTY)];
 }
 
 UnmakeState Position::makeMove(Move move)
@@ -455,26 +482,41 @@ UnmakeState Position::makeMove(Move move)
 
     if(move.isCastle())
     {
-        Piece rookPiece { movingSide == Side::WHITE ? Piece::WHITE_ROOK : Piece::BLACK_ROOK };
+        Piece rookPiece { sidedPiece(movingSide, Piece::WHITE_ROOK) };
         LERFSquare rookFrom { castleRookFrom(movingSide, move.flag()) };
         LERFSquare rookTo { castleRookTo(movingSide, move.flag()) };
         this->removePiece(rookPiece, rookFrom);
         this->addPiece(rookPiece, rookTo);
     }
 
-    this->castlingRights = clearCastleRights(this->castlingRights, castleRightsLostAt(from));
-    this->castlingRights = clearCastleRights(this->castlingRights, castleRightsLostAt(to));
+    // Castling-rights and en passant-square changes each touch at
+    // most one Zobrist key (indexed by the whole Castle bitmask, or
+    // by file), so -- unlike piece placement above -- they're XORed
+    // in/out directly here rather than through a shared helper.
+    Castle newCastlingRights { clearCastleRights(this->castlingRights, castleRightsLostAt(from)) };
+    newCastlingRights = clearCastleRights(newCastlingRights, castleRightsLostAt(to));
+    if(newCastlingRights != this->castlingRights)
+    {
+        this->positionIdentity ^= this->castlingRightKeys[std::to_underlying(this->castlingRights)];
+        this->positionIdentity ^= this->castlingRightKeys[std::to_underlying(newCastlingRights)];
+        this->castlingRights = newCastlingRights;
+    }
 
-    this->enPassantSquare = move.isDoublePawnPush()
+    LERFSquare newEnPassantSquare { move.isDoublePawnPush()
         ? static_cast<LERFSquare>((std::to_underlying(from) + std::to_underlying(to)) / 2)
-        : LERFSquare::NO_SQ;
+        : LERFSquare::NO_SQ };
+    if(this->enPassantSquare != LERFSquare::NO_SQ)
+        this->positionIdentity ^= this->enPassantFileKeys[fileOf(std::to_underlying(this->enPassantSquare))];
+    if(newEnPassantSquare != LERFSquare::NO_SQ)
+        this->positionIdentity ^= this->enPassantFileKeys[fileOf(std::to_underlying(newEnPassantSquare))];
+    this->enPassantSquare = newEnPassantSquare;
 
     bool isPawnMove { movingPiece == Piece::WHITE_PAWN || movingPiece == Piece::BLACK_PAWN };
     this->fiftyMovesCount = (isPawnMove || move.isCapture()) ? 0 : this->fiftyMovesCount + 1;
 
     ++this->ply;
     this->sideToMove = (movingSide == Side::WHITE) ? Side::BLACK : Side::WHITE;
-    this->positionIdentity = this->calculatePositionHash();
+    this->positionIdentity ^= this->sideToMoveKey;
 
     return saved;
 }
@@ -489,7 +531,7 @@ void Position::unmakeMove(Move move, const UnmakeState& saved)
     Side movingSide { this->sideToMove };
 
     Piece placedPiece { this->pieceOn(to) };
-    Piece originalPiece { move.isPromotion() ? (movingSide == Side::WHITE ? Piece::WHITE_PAWN : Piece::BLACK_PAWN) : placedPiece };
+    Piece originalPiece { move.isPromotion() ? sidedPiece(movingSide, Piece::WHITE_PAWN) : placedPiece };
 
     this->removePiece(placedPiece, to);
     this->addPiece(originalPiece, from);
@@ -506,7 +548,7 @@ void Position::unmakeMove(Move move, const UnmakeState& saved)
 
     if(move.isCastle())
     {
-        Piece rookPiece { movingSide == Side::WHITE ? Piece::WHITE_ROOK : Piece::BLACK_ROOK };
+        Piece rookPiece { sidedPiece(movingSide, Piece::WHITE_ROOK) };
         LERFSquare rookFrom { castleRookFrom(movingSide, move.flag()) };
         LERFSquare rookTo { castleRookTo(movingSide, move.flag()) };
         this->removePiece(rookPiece, rookTo);

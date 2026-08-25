@@ -1,20 +1,7 @@
 #include "doctest.h" // TEST_CASE, TEST_SUITE, CHECK, REQUIRE
 #include "movegen.h" // MoveGen::perft
 #include "position.h" // Position, STANDARD_START_FEN
-
-#include <string> // std::string
-
-namespace
-{
-
-[[nodiscard]] Position parsePosition(const std::string& fen)
-{
-    auto result { Position::fromFen(fen) };
-    REQUIRE(result.has_value());
-    return result.value();
-}
-
-} // namespace
+#include "test_helpers.h" // parsePosition
 
 /*
  * Deeper perft cases run into the millions of nodes, especially under
@@ -25,6 +12,13 @@ namespace
  */
 TEST_SUITE("perft")
 {
+
+TEST_CASE("perft at depth 0 counts the position itself as a single leaf node")
+{
+    Position position { parsePosition(STANDARD_START_FEN) };
+
+    CHECK(MoveGen::perft(position, 0) == 1);
+}
 
 /*
  * Node counts are the well-known perft reference values for the

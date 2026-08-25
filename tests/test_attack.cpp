@@ -4,6 +4,7 @@
 #include "types.h" // U64, LERFSquare, Side, FancyMagic
 
 #include <cstddef> // std::size_t
+#include <span> // std::span
 #include <utility> // std::to_underlying
 
 TEST_CASE("knight attacks from corner squares")
@@ -76,49 +77,47 @@ TEST_CASE("pawn attacks are zero from the ranks a pawn can never be on")
     }
 }
 
+namespace
+{
+
 /*
  * For every square, and every occupancy subset of that square's relevant
  * occupancy mask (enumerated via the same Carry-Rippler trick used by
- * buildRookTables()/buildBishopTables() in attack.h), the fancy-magic
- * table lookup must agree with an independent ray-walk. This validates the
- * multiply-shift-offset indexing itself, catching any index collisions
- * between distinct occupancies on the same square -- a class of bug the
- * ray-walk function can't cause and the table-build code doesn't self-check.
+ * buildRookTables()/buildBishopTables() in attack.h), check that the
+ * fancy-magic table lookup (tableAttacks) agrees with an independent
+ * ray-walk (rayWalk). This validates the multiply-shift-offset indexing
+ * itself, catching any index collisions between distinct occupancies on
+ * the same square -- a class of bug the ray-walk function can't cause
+ * and the table-build code doesn't self-check.
  */
-TEST_CASE("Attack::rookAttacks matches a naive ray-walk for every occupancy subset")
+void checkSlidingAttacksMatchRayWalk(std::span<const FancyMagic> magics, U64 (*tableAttacks)(LERFSquare, U64), U64 (*rayWalk)(int, U64))
 {
     for(int sq { std::to_underlying(LERFSquare::A1) }; sq < std::to_underlying(LERFSquare::NUM_SQUARES); ++sq)
     {
         std::size_t sqIndex { static_cast<std::size_t>(sq) };
         LERFSquare square { static_cast<LERFSquare>(sq) };
-        const FancyMagic& magic { ROOK_FANCY_MAGICS[sqIndex] };
+        const FancyMagic& magic { magics[sqIndex] };
 
         U64 occupancy { 0ULL };
         do
         {
-            CHECK(Attack::rookAttacks(square, occupancy) == calculateRookAttacks(sq, occupancy));
+            CHECK(tableAttacks(square, occupancy) == rayWalk(sq, occupancy));
 
             occupancy = (occupancy - magic.occupancyMask) & magic.occupancyMask;
         } while(occupancy);
     }
 }
 
+} // namespace
+
+TEST_CASE("Attack::rookAttacks matches a naive ray-walk for every occupancy subset")
+{
+    checkSlidingAttacksMatchRayWalk(ROOK_FANCY_MAGICS, Attack::rookAttacks, calculateRookAttacks);
+}
+
 TEST_CASE("Attack::bishopAttacks matches a naive ray-walk for every occupancy subset")
 {
-    for(int sq { std::to_underlying(LERFSquare::A1) }; sq < std::to_underlying(LERFSquare::NUM_SQUARES); ++sq)
-    {
-        std::size_t sqIndex { static_cast<std::size_t>(sq) };
-        LERFSquare square { static_cast<LERFSquare>(sq) };
-        const FancyMagic& magic { BISHOP_FANCY_MAGICS[sqIndex] };
-
-        U64 occupancy { 0ULL };
-        do
-        {
-            CHECK(Attack::bishopAttacks(square, occupancy) == calculateBishopAttacks(sq, occupancy));
-
-            occupancy = (occupancy - magic.occupancyMask) & magic.occupancyMask;
-        } while(occupancy);
-    }
+    checkSlidingAttacksMatchRayWalk(BISHOP_FANCY_MAGICS, Attack::bishopAttacks, calculateBishopAttacks);
 }
 
 TEST_CASE("Attack::queenAttacks is the union of rook and bishop attacks from the same square")

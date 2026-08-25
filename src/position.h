@@ -5,15 +5,14 @@
 #include "types.h" //LERFSquare, Piece, File, Rank, Castle, Side, U64
 
 #include <expected> // std::expected, std::unexpected
-#include <string> //std::string
 #include <string_view> // std::string_view
 #include <utility> // std::to_underlying
 
-inline const std::string pieceToChar { "-PNBRQKpnbrqk" };
-inline const std::string rankToChar { "12345678" };
-inline const std::string fileToChar { "abcdefgh" };
+inline constexpr std::string_view pieceToChar { "-PNBRQKpnbrqk" };
+inline constexpr std::string_view rankToChar { "12345678" };
+inline constexpr std::string_view fileToChar { "abcdefgh" };
 
-inline const std::string STANDARD_START_FEN { "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" };
+inline constexpr std::string_view STANDARD_START_FEN { "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" };
 
 enum class FenParseError
 {
@@ -83,6 +82,10 @@ class Position
 
         // Position member variables
         U64 pieceBitboards[std::to_underlying(Piece::NUM_PIECES_ALL)] {};
+        // Mailbox: the piece (or Piece::EMPTY) on each square, kept in
+        // sync by addPiece()/removePiece() so pieceOn() is an O(1)
+        // lookup instead of a linear scan over pieceBitboards.
+        Piece pieceOnSquare[std::to_underlying(LERFSquare::NUM_SQUARES)] {};
         LERFSquare enPassantSquare {};
         Castle castlingRights {};
         int fiftyMovesCount {};
@@ -92,7 +95,7 @@ class Position
     public:
         static void initZobristPositionKeys();
         Position() = default;
-        [[nodiscard]] static std::expected<Position, FenParseError> fromFen(const std::string& fenString);
+        [[nodiscard]] static std::expected<Position, FenParseError> fromFen(std::string_view fenString);
         [[nodiscard]] U64 calculatePositionHash() const;
         void print() const;
 

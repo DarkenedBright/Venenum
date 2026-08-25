@@ -3,7 +3,7 @@
 #include "bitboard.h" // getLSBIndex, resetBit, squareToBitboard
 #include "move.h" // Move, MoveFlag, MoveList
 #include "position.h" // Position, UnmakeState
-#include "types.h" // LERFSquare, Piece, Rank, Side, Castle, U64
+#include "types.h" // LERFSquare, Piece, Rank, RayDirection, Side, Castle, U64, sidedPiece, allPiecesOf, rankOf
 
 #include <cstdint> // std::uint64_t
 #include <optional> // std::optional, std::nullopt
@@ -57,7 +57,7 @@ void generateSlidingPieceMoves(U64 pieceBitboard, SlidingAttackFn attackFn, U64 
  */
 [[nodiscard]] bool isPawnPromotionRank(Side side, int sq)
 {
-    int rank { sq / 8 };
+    int rank { rankOf(sq) };
     return side == Side::WHITE ? rank == std::to_underlying(Rank::RANK_8) : rank == std::to_underlying(Rank::RANK_1);
 }
 
@@ -67,7 +67,7 @@ void generateSlidingPieceMoves(U64 pieceBitboard, SlidingAttackFn attackFn, U64 
  */
 [[nodiscard]] bool isPawnStartingRank(Side side, int sq)
 {
-    int rank { sq / 8 };
+    int rank { rankOf(sq) };
     return side == Side::WHITE ? rank == std::to_underlying(Rank::RANK_2) : rank == std::to_underlying(Rank::RANK_7);
 }
 
@@ -101,6 +101,34 @@ void addPawnMove(LERFSquare from, LERFSquare to, bool isCaptureMove, bool isProm
 }
 
 /*
+ * The five bitboards Attack::isSquareAttacked() needs to test whether
+ * attackingSide attacks a square, gathered once so callers checking
+ * multiple squares against the same side don't re-fetch them.
+ */
+struct AttackerBitboards
+{
+    U64 pawns;
+    U64 knights;
+    U64 bishopsAndQueens;
+    U64 rooksAndQueens;
+    U64 king;
+};
+
+[[nodiscard]] AttackerBitboards gatherAttackerBitboards(const Position& position, Side attackingSide)
+{
+    U64 bishops { position.getPieceBitboard(sidedPiece(attackingSide, Piece::WHITE_BISHOP)) };
+    U64 rooks { position.getPieceBitboard(sidedPiece(attackingSide, Piece::WHITE_ROOK)) };
+    U64 queens { position.getPieceBitboard(sidedPiece(attackingSide, Piece::WHITE_QUEEN)) };
+    return AttackerBitboards {
+        .pawns = position.getPieceBitboard(sidedPiece(attackingSide, Piece::WHITE_PAWN)),
+        .knights = position.getPieceBitboard(sidedPiece(attackingSide, Piece::WHITE_KNIGHT)),
+        .bishopsAndQueens = bishops | queens,
+        .rooksAndQueens = rooks | queens,
+        .king = position.getPieceBitboard(sidedPiece(attackingSide, Piece::WHITE_KING))
+    };
+}
+
+/*
  * Attempt to add one castling move to moves. Requires: castlingRights
  * grants requiredRight; every square in emptySquaresMask (between
  * king and rook, including squares the king doesn't pass through but
@@ -117,17 +145,12 @@ void tryAddCastleMove(const Position& position, Side side, Castle requiredRight,
     if(occupancy & emptySquaresMask) return;
 
     Side enemySide { side == Side::WHITE ? Side::BLACK : Side::WHITE };
-    U64 enemyPawns { position.getPieceBitboard(enemySide == Side::WHITE ? Piece::WHITE_PAWN : Piece::BLACK_PAWN) };
-    U64 enemyKnights { position.getPieceBitboard(enemySide == Side::WHITE ? Piece::WHITE_KNIGHT : Piece::BLACK_KNIGHT) };
-    U64 enemyBishops { position.getPieceBitboard(enemySide == Side::WHITE ? Piece::WHITE_BISHOP : Piece::BLACK_BISHOP) };
-    U64 enemyRooks { position.getPieceBitboard(enemySide == Side::WHITE ? Piece::WHITE_ROOK : Piece::BLACK_ROOK) };
-    U64 enemyQueens { position.getPieceBitboard(enemySide == Side::WHITE ? Piece::WHITE_QUEEN : Piece::BLACK_QUEEN) };
-    U64 enemyKing { position.getPieceBitboard(enemySide == Side::WHITE ? Piece::WHITE_KING : Piece::BLACK_KING) };
+    AttackerBitboards enemy { gatherAttackerBitboards(position, enemySide) };
 
     LERFSquare squaresToCheck[] { kingFrom, transitSquare, destination };
     for(LERFSquare square : squaresToCheck)
     {
-        if(Attack::isSquareAttacked(square, enemySide, occupancy, enemyPawns, enemyKnights, enemyBishops | enemyQueens, enemyRooks | enemyQueens, enemyKing))
+        if(Attack::isSquareAttacked(square, enemySide, occupancy, enemy.pawns, enemy.knights, enemy.bishopsAndQueens, enemy.rooksAndQueens, enemy.king))
             return;
     }
 
@@ -141,21 +164,11 @@ void tryAddCastleMove(const Position& position, Side side, Castle requiredRight,
 [[nodiscard]] bool isKingInCheck(const Position& position, Side kingSide)
 {
     Side enemySide { kingSide == Side::WHITE ? Side::BLACK : Side::WHITE };
-    Piece kingPiece { kingSide == Side::WHITE ? Piece::WHITE_KING : Piece::BLACK_KING };
-    LERFSquare kingSquare { static_cast<LERFSquare>(getLSBIndex(position.getPieceBitboard(kingPiece))) };
-
-    Piece enemyPawn { enemySide == Side::WHITE ? Piece::WHITE_PAWN : Piece::BLACK_PAWN };
-    Piece enemyKnight { enemySide == Side::WHITE ? Piece::WHITE_KNIGHT : Piece::BLACK_KNIGHT };
-    Piece enemyBishop { enemySide == Side::WHITE ? Piece::WHITE_BISHOP : Piece::BLACK_BISHOP };
-    Piece enemyRook { enemySide == Side::WHITE ? Piece::WHITE_ROOK : Piece::BLACK_ROOK };
-    Piece enemyQueen { enemySide == Side::WHITE ? Piece::WHITE_QUEEN : Piece::BLACK_QUEEN };
-    Piece enemyKing { enemySide == Side::WHITE ? Piece::WHITE_KING : Piece::BLACK_KING };
+    LERFSquare kingSquare { static_cast<LERFSquare>(getLSBIndex(position.getPieceBitboard(sidedPiece(kingSide, Piece::WHITE_KING)))) };
+    AttackerBitboards enemy { gatherAttackerBitboards(position, enemySide) };
 
     return Attack::isSquareAttacked(kingSquare, enemySide, position.getPieceBitboard(Piece::ALL_PIECES),
-        position.getPieceBitboard(enemyPawn), position.getPieceBitboard(enemyKnight),
-        position.getPieceBitboard(enemyBishop) | position.getPieceBitboard(enemyQueen),
-        position.getPieceBitboard(enemyRook) | position.getPieceBitboard(enemyQueen),
-        position.getPieceBitboard(enemyKing));
+        enemy.pawns, enemy.knights, enemy.bishopsAndQueens, enemy.rooksAndQueens, enemy.king);
 }
 
 } // namespace
@@ -163,11 +176,11 @@ void tryAddCastleMove(const Position& position, Side side, Castle requiredRight,
 void MoveGen::generateKnightMoves(const Position& position, MoveList& moves)
 {
     Side side { position.getSideToMove() };
-    Piece knightPiece { side == Side::WHITE ? Piece::WHITE_KNIGHT : Piece::BLACK_KNIGHT };
-    U64 ownPieces { position.getPieceBitboard(side == Side::WHITE ? Piece::WHITE_ALL : Piece::BLACK_ALL) };
-    U64 enemyPieces { position.getPieceBitboard(side == Side::WHITE ? Piece::BLACK_ALL : Piece::WHITE_ALL) };
+    Side enemySide { side == Side::WHITE ? Side::BLACK : Side::WHITE };
+    U64 ownPieces { position.getPieceBitboard(allPiecesOf(side)) };
+    U64 enemyPieces { position.getPieceBitboard(allPiecesOf(enemySide)) };
 
-    U64 knights { position.getPieceBitboard(knightPiece) };
+    U64 knights { position.getPieceBitboard(sidedPiece(side, Piece::WHITE_KNIGHT)) };
     while(knights)
     {
         int fromSq { getLSBIndex(knights) };
@@ -180,11 +193,11 @@ void MoveGen::generateKnightMoves(const Position& position, MoveList& moves)
 void MoveGen::generateKingMoves(const Position& position, MoveList& moves)
 {
     Side side { position.getSideToMove() };
-    Piece kingPiece { side == Side::WHITE ? Piece::WHITE_KING : Piece::BLACK_KING };
-    U64 ownPieces { position.getPieceBitboard(side == Side::WHITE ? Piece::WHITE_ALL : Piece::BLACK_ALL) };
-    U64 enemyPieces { position.getPieceBitboard(side == Side::WHITE ? Piece::BLACK_ALL : Piece::WHITE_ALL) };
+    Side enemySide { side == Side::WHITE ? Side::BLACK : Side::WHITE };
+    U64 ownPieces { position.getPieceBitboard(allPiecesOf(side)) };
+    U64 enemyPieces { position.getPieceBitboard(allPiecesOf(enemySide)) };
 
-    U64 kingBitboard { position.getPieceBitboard(kingPiece) };
+    U64 kingBitboard { position.getPieceBitboard(sidedPiece(side, Piece::WHITE_KING)) };
     if(kingBitboard)
     {
         LERFSquare from { static_cast<LERFSquare>(getLSBIndex(kingBitboard)) };
@@ -212,29 +225,26 @@ void MoveGen::generateKingMoves(const Position& position, MoveList& moves)
 void MoveGen::generateSlidingMoves(const Position& position, MoveList& moves)
 {
     Side side { position.getSideToMove() };
-    U64 ownPieces { position.getPieceBitboard(side == Side::WHITE ? Piece::WHITE_ALL : Piece::BLACK_ALL) };
-    U64 enemyPieces { position.getPieceBitboard(side == Side::WHITE ? Piece::BLACK_ALL : Piece::WHITE_ALL) };
+    Side enemySide { side == Side::WHITE ? Side::BLACK : Side::WHITE };
+    U64 ownPieces { position.getPieceBitboard(allPiecesOf(side)) };
+    U64 enemyPieces { position.getPieceBitboard(allPiecesOf(enemySide)) };
     U64 occupancy { position.getPieceBitboard(Piece::ALL_PIECES) };
 
-    Piece bishopPiece { side == Side::WHITE ? Piece::WHITE_BISHOP : Piece::BLACK_BISHOP };
-    Piece rookPiece { side == Side::WHITE ? Piece::WHITE_ROOK : Piece::BLACK_ROOK };
-    Piece queenPiece { side == Side::WHITE ? Piece::WHITE_QUEEN : Piece::BLACK_QUEEN };
-
-    generateSlidingPieceMoves(position.getPieceBitboard(bishopPiece), Attack::bishopAttacks, occupancy, ownPieces, enemyPieces, moves);
-    generateSlidingPieceMoves(position.getPieceBitboard(rookPiece), Attack::rookAttacks, occupancy, ownPieces, enemyPieces, moves);
-    generateSlidingPieceMoves(position.getPieceBitboard(queenPiece), Attack::queenAttacks, occupancy, ownPieces, enemyPieces, moves);
+    generateSlidingPieceMoves(position.getPieceBitboard(sidedPiece(side, Piece::WHITE_BISHOP)), Attack::bishopAttacks, occupancy, ownPieces, enemyPieces, moves);
+    generateSlidingPieceMoves(position.getPieceBitboard(sidedPiece(side, Piece::WHITE_ROOK)), Attack::rookAttacks, occupancy, ownPieces, enemyPieces, moves);
+    generateSlidingPieceMoves(position.getPieceBitboard(sidedPiece(side, Piece::WHITE_QUEEN)), Attack::queenAttacks, occupancy, ownPieces, enemyPieces, moves);
 }
 
 void MoveGen::generatePawnMoves(const Position& position, MoveList& moves)
 {
     Side side { position.getSideToMove() };
-    Piece pawnPiece { side == Side::WHITE ? Piece::WHITE_PAWN : Piece::BLACK_PAWN };
-    U64 enemyPieces { position.getPieceBitboard(side == Side::WHITE ? Piece::BLACK_ALL : Piece::WHITE_ALL) };
+    Side enemySide { side == Side::WHITE ? Side::BLACK : Side::WHITE };
+    U64 enemyPieces { position.getPieceBitboard(allPiecesOf(enemySide)) };
     U64 occupancy { position.getPieceBitboard(Piece::ALL_PIECES) };
-    int pushDirection { side == Side::WHITE ? 8 : -8 };
+    int pushDirection { side == Side::WHITE ? std::to_underlying(RayDirection::NORTH) : std::to_underlying(RayDirection::SOUTH) };
     LERFSquare enPassantSquare { position.getEnPassantSquare() };
 
-    U64 pawns { position.getPieceBitboard(pawnPiece) };
+    U64 pawns { position.getPieceBitboard(sidedPiece(side, Piece::WHITE_PAWN)) };
     while(pawns)
     {
         int fromSq { getLSBIndex(pawns) };

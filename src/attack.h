@@ -275,16 +275,17 @@ namespace
 }
 
 /*
- * Return a bitboard containing all attacked
- * squares on the board from a rook on sq with
- * a relevant occupancy. This includes attacked
- * squares with blocker pieces on them.
+ * Return a bitboard containing all attacked squares on the board from
+ * a sliding piece on sq, walking outward along each of the four given
+ * ray directions until (and including) the first blocker in
+ * occupancy, or the edge of the board. This includes attacked squares
+ * with blocker pieces on them; the rook/bishop distinction is purely
+ * which four directions are passed in.
  */
-[[nodiscard]] constexpr U64 calculateRookAttacks(int sq, U64 occupancy)
+[[nodiscard]] constexpr U64 calculateSlidingAttacks(int sq, U64 occupancy, const RayDirection (&directions)[4])
 {
     U64 attack { 0ULL };
-    RayDirection rookDirections[4] { RayDirection::NORTH, RayDirection::EAST, RayDirection::SOUTH, RayDirection::WEST };
-    for(RayDirection dir: rookDirections)
+    for(RayDirection dir: directions)
     {
         int curSq { sq + std::to_underlying(dir) };
         int prevSq { sq };
@@ -305,31 +306,26 @@ namespace
 
 /*
  * Return a bitboard containing all attacked
+ * squares on the board from a rook on sq with
+ * a relevant occupancy. This includes attacked
+ * squares with blocker pieces on them.
+ */
+[[nodiscard]] constexpr U64 calculateRookAttacks(int sq, U64 occupancy)
+{
+    RayDirection rookDirections[4] { RayDirection::NORTH, RayDirection::EAST, RayDirection::SOUTH, RayDirection::WEST };
+    return calculateSlidingAttacks(sq, occupancy, rookDirections);
+}
+
+/*
+ * Return a bitboard containing all attacked
  * squares on the board from a bishop on sq with
  * a relevant occupancy. This includes attacked
  * squares with blocker pieces on them.
  */
 [[nodiscard]] constexpr U64 calculateBishopAttacks(int sq, U64 occupancy)
 {
-    U64 attack { 0ULL };
     RayDirection bishopDirections[4] { RayDirection::NORTH_EAST, RayDirection::SOUTH_EAST, RayDirection::SOUTH_WEST, RayDirection::NORTH_WEST };
-    for(RayDirection dir: bishopDirections)
-    {
-        int curSq { sq + std::to_underlying(dir) };
-        int prevSq { sq };
-        while(slideIsValid(prevSq, curSq))
-        {
-            U64 bbSq { squareToBitboard(curSq) };
-            attack |= bbSq;
-
-            if(occupancy & bbSq) break;
-
-            prevSq = curSq;
-            curSq += std::to_underlying(dir);
-        }
-    }
-
-    return attack;
+    return calculateSlidingAttacks(sq, occupancy, bishopDirections);
 }
 
 /*
@@ -347,73 +343,55 @@ struct MagicTables
 };
 
 /*
- * Loop through all the squares, and calculate attack bitboards
- * for rook pieces with all possible relevant occupancies for that
- * square. The traversal of all subsets of a specific occupancy uses
- * the formula a = (a - b) & b. Called the Carry-Rippler method, introduced
- * by Marcel van Kervinck and later by Steffan Westcott.
+ * Loop through all the squares, and calculate attack bitboards for a
+ * sliding piece with all possible relevant occupancies for that
+ * square, using calculateAttacks (calculateRookAttacks or
+ * calculateBishopAttacks) to fill in each entry. The traversal of all
+ * subsets of a specific occupancy uses the formula a = (a - b) & b.
+ * Called the Carry-Rippler method, introduced by Marcel van Kervinck
+ * and later by Steffan Westcott.
  */
-consteval MagicTables<ROOK_ATTACKS_TABLE_SIZE> buildRookTables()
+template<std::size_t TableSize>
+consteval MagicTables<TableSize> buildMagicTables(
+    const U64 (&occupancyTable)[std::to_underlying(LERFSquare::NUM_SQUARES)],
+    const U64 (&magicNumbers)[std::to_underlying(LERFSquare::NUM_SQUARES)],
+    const int (&shiftTable)[std::to_underlying(LERFSquare::NUM_SQUARES)],
+    U64 (*calculateAttacks)(int, U64))
 {
-    MagicTables<ROOK_ATTACKS_TABLE_SIZE> result {};
+    MagicTables<TableSize> result {};
     std::size_t runningOffset { 0 };
     for(int sq { std::to_underlying(LERFSquare::A1) }; sq < std::to_underlying(LERFSquare::NUM_SQUARES); ++sq)
     {
         std::size_t sqIndex { static_cast<std::size_t>(sq) };
         FancyMagic& curMagic { result.magics[sqIndex] };
-        curMagic.shift = ROOK_SHIFT[sqIndex];
-        curMagic.magicNumber = ROOK_MAGIC_NUMBERS[sqIndex];
-        curMagic.occupancyMask = ROOK_OCCUPANCY[sqIndex];
+        curMagic.shift = shiftTable[sqIndex];
+        curMagic.magicNumber = magicNumbers[sqIndex];
+        curMagic.occupancyMask = occupancyTable[sqIndex];
         curMagic.offset = runningOffset;
 
         U64 currentOccupancy { 0ULL };
         do
         {
             U64 curIndex { (currentOccupancy * curMagic.magicNumber) >> curMagic.shift };
-            result.table[curMagic.offset + static_cast<std::size_t>(curIndex)] = calculateRookAttacks(sq, currentOccupancy);
+            result.table[curMagic.offset + static_cast<std::size_t>(curIndex)] = calculateAttacks(sq, currentOccupancy);
 
             currentOccupancy = (currentOccupancy - curMagic.occupancyMask) & curMagic.occupancyMask;
         } while(currentOccupancy);
 
-        U64 fancyBitsUsed { static_cast<U64>(64 - ROOK_SHIFT[sqIndex]) };
+        U64 fancyBitsUsed { static_cast<U64>(64 - shiftTable[sqIndex]) };
         runningOffset += static_cast<std::size_t>(1ULL << fancyBitsUsed);
     }
     return result;
 }
 
-/*
- * Loop through all the squares, and calculate attack bitboards
- * for bishop pieces with all possible relevant occupancies for that
- * square. The traversal of all subsets of a specific occupancy uses
- * the formula a = (a - b) & b. Called the Carry-Rippler method, introduced
- * by Marcel van Kervinck and later by Steffan Westcott.
- */
+consteval MagicTables<ROOK_ATTACKS_TABLE_SIZE> buildRookTables()
+{
+    return buildMagicTables<ROOK_ATTACKS_TABLE_SIZE>(ROOK_OCCUPANCY, ROOK_MAGIC_NUMBERS, ROOK_SHIFT, calculateRookAttacks);
+}
+
 consteval MagicTables<BISHOP_ATTACKS_TABLE_SIZE> buildBishopTables()
 {
-    MagicTables<BISHOP_ATTACKS_TABLE_SIZE> result {};
-    std::size_t runningOffset { 0 };
-    for(int sq { std::to_underlying(LERFSquare::A1) }; sq < std::to_underlying(LERFSquare::NUM_SQUARES); ++sq)
-    {
-        std::size_t sqIndex { static_cast<std::size_t>(sq) };
-        FancyMagic& curMagic { result.magics[sqIndex] };
-        curMagic.shift = BISHOP_SHIFT[sqIndex];
-        curMagic.magicNumber = BISHOP_MAGIC_NUMBERS[sqIndex];
-        curMagic.occupancyMask = BISHOP_OCCUPANCY[sqIndex];
-        curMagic.offset = runningOffset;
-
-        U64 currentOccupancy { 0ULL };
-        do
-        {
-            U64 curIndex { (currentOccupancy * curMagic.magicNumber) >> curMagic.shift };
-            result.table[curMagic.offset + static_cast<std::size_t>(curIndex)] = calculateBishopAttacks(sq, currentOccupancy);
-
-            currentOccupancy = (currentOccupancy - curMagic.occupancyMask) & curMagic.occupancyMask;
-        } while(currentOccupancy);
-
-        U64 fancyBitsUsed { static_cast<U64>(64 - BISHOP_SHIFT[sqIndex]) };
-        runningOffset += static_cast<std::size_t>(1ULL << fancyBitsUsed);
-    }
-    return result;
+    return buildMagicTables<BISHOP_ATTACKS_TABLE_SIZE>(BISHOP_OCCUPANCY, BISHOP_MAGIC_NUMBERS, BISHOP_SHIFT, calculateBishopAttacks);
 }
 
 } // namespace

@@ -53,6 +53,21 @@ TEST_CASE("setoption echoes the parsed name and value")
     CHECK(runUCI("setoption name Foo value Bar").find("Name: Foo, Value: Bar") != std::string::npos);
 }
 
+TEST_CASE("setoption is silently ignored when the first token isn't 'name'")
+{
+    CHECK(runUCI("setoption namex Foo").empty());
+}
+
+TEST_CASE("setoption is silently ignored when the token after the name isn't 'value'")
+{
+    CHECK(runUCI("setoption name Foo garbage").empty());
+}
+
+TEST_CASE("setoption echoes an empty value when no 'value' token follows the name")
+{
+    CHECK(runUCI("setoption name Foo").find("Name: Foo, Value: ") != std::string::npos);
+}
+
 TEST_CASE("stub commands each respond without crashing")
 {
     std::string output { runUCI("debug\nregister\nucinewgame\nstop\nponderhit") };
@@ -67,6 +82,16 @@ TEST_CASE("stub commands each respond without crashing")
 TEST_CASE("position fen rejects a malformed FEN string")
 {
     CHECK(runUCI("position fen not-a-valid-fen").find("Invalid 'position' command") != std::string::npos);
+}
+
+TEST_CASE("position with an unrecognized first token is silently ignored")
+{
+    CHECK(runUCI("position banana").empty());
+}
+
+TEST_CASE("an unrecognized top-level command is silently ignored")
+{
+    CHECK(runUCI("boguscommand").empty());
 }
 
 TEST_CASE("position fen sets up the given position for go perft")
@@ -98,6 +123,11 @@ TEST_CASE("go perft divides the node count by root move")
 TEST_CASE("go perft requires a depth of at least 1")
 {
     CHECK(runUCI("position startpos\ngo perft 0").find("requires a position and a depth") != std::string::npos);
+}
+
+TEST_CASE("go without a perft subcommand hits the not-implemented fallback")
+{
+    CHECK(runUCI("position startpos\ngo depth 5").find("'go' is not implemented") != std::string::npos);
 }
 
 TEST_CASE("position moves applies moves before go perft counts from the resulting position")

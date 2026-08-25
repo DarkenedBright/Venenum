@@ -15,7 +15,7 @@ Thanks for your interest in working on Venenum. This document covers the project
 | `src/position.h` / `src/position.cpp` | The `Position` class: FEN parsing, Zobrist hashing, board printing, `makeMove`/`unmakeMove`. |
 | `src/uci.h` / `src/uci.cpp` | The UCI protocol command loop and handlers, including `position` (FEN/startpos plus a trailing `moves` list) and the `go perft <depth>` debugging extension. |
 | `src/venenum.cpp` | `main()` — engine startup and initialization. |
-| `tests/` | The test suite (`test_<module>.cpp` per tested `src/` module) and the vendored `doctest.h`. |
+| `tests/` | The test suite (`test_<module>.cpp` per tested `src/` module, plus `test_main.cpp`'s doctest runner entry point and the shared `test_helpers.h`) and the vendored `doctest.h`. |
 
 ## Build system
 

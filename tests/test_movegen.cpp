@@ -1,6 +1,6 @@
 #include "doctest.h" // TEST_CASE, CHECK, REQUIRE
 #include "move.h" // Move, MoveFlag, MoveList
-#include "movegen.h" // MoveGen::generateKnightMoves, MoveGen::generateKingMoves, MoveGen::generateSlidingMoves
+#include "movegen.h" // MoveGen::generateKnightMoves, MoveGen::generateKingMoves, MoveGen::generateSlidingMoves, MoveGen::generatePawnMoves
 #include "position.h" // Position
 #include "types.h" // LERFSquare
 
@@ -41,6 +41,16 @@ namespace
         if(move == expected) return true;
     }
     return false;
+}
+
+[[nodiscard]] int countPromotions(const MoveList& moves)
+{
+    int count { 0 };
+    for(const Move& move : moves)
+    {
+        if(move.isPromotion()) ++count;
+    }
+    return count;
 }
 
 } // namespace
@@ -172,4 +182,103 @@ TEST_CASE("generateSlidingMoves respects blockers on both the orthogonal and dia
     CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::D6, MoveFlag::QUIET)));
     CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::D7, MoveFlag::QUIET)));
     CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::G7, MoveFlag::QUIET)));
+}
+
+TEST_CASE("generatePawnMoves produces a single push and a double push from the starting rank")
+{
+    Position position { parsePosition("8/8/8/8/8/8/4P3/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generatePawnMoves(position, moves);
+
+    CHECK(moves.size() == 2);
+    CHECK(contains(moves, Move(LERFSquare::E2, LERFSquare::E3, MoveFlag::QUIET)));
+    CHECK(contains(moves, Move(LERFSquare::E2, LERFSquare::E4, MoveFlag::DOUBLE_PAWN_PUSH)));
+}
+
+TEST_CASE("generatePawnMoves generates no push (single or double) when the square ahead is blocked")
+{
+    Position position { parsePosition("8/8/8/8/8/4p3/4P3/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generatePawnMoves(position, moves);
+
+    CHECK(moves.empty());
+}
+
+TEST_CASE("generatePawnMoves produces all four promotion flags for a push onto the last rank")
+{
+    Position position { parsePosition("8/4P3/8/8/8/8/8/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generatePawnMoves(position, moves);
+
+    CHECK(moves.size() == 4);
+    CHECK(countPromotions(moves) == 4);
+    CHECK(countCaptures(moves) == 0);
+    CHECK(contains(moves, Move(LERFSquare::E7, LERFSquare::E8, MoveFlag::KNIGHT_PROMO)));
+    CHECK(contains(moves, Move(LERFSquare::E7, LERFSquare::E8, MoveFlag::BISHOP_PROMO)));
+    CHECK(contains(moves, Move(LERFSquare::E7, LERFSquare::E8, MoveFlag::ROOK_PROMO)));
+    CHECK(contains(moves, Move(LERFSquare::E7, LERFSquare::E8, MoveFlag::QUEEN_PROMO)));
+}
+
+TEST_CASE("generatePawnMoves flags non-promotion-rank diagonal captures as CAPTURE alongside an unblocked push")
+{
+    Position position { parsePosition("8/8/3p1p2/4P3/8/8/8/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generatePawnMoves(position, moves);
+
+    CHECK(moves.size() == 3);
+    CHECK(countQuiet(moves) == 1);
+    CHECK(countCaptures(moves) == 2);
+    CHECK(contains(moves, Move(LERFSquare::E5, LERFSquare::E6, MoveFlag::QUIET)));
+    CHECK(contains(moves, Move(LERFSquare::E5, LERFSquare::D6, MoveFlag::CAPTURE)));
+    CHECK(contains(moves, Move(LERFSquare::E5, LERFSquare::F6, MoveFlag::CAPTURE)));
+}
+
+TEST_CASE("generatePawnMoves produces all four promotion-capture flags for a capture onto the last rank")
+{
+    Position position { parsePosition("3n1n2/4P3/8/8/8/8/8/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generatePawnMoves(position, moves);
+
+    CHECK(moves.size() == 12);
+    CHECK(countPromotions(moves) == 12);
+    CHECK(countCaptures(moves) == 8);
+    CHECK(contains(moves, Move(LERFSquare::E7, LERFSquare::E8, MoveFlag::QUEEN_PROMO)));
+    CHECK(contains(moves, Move(LERFSquare::E7, LERFSquare::D8, MoveFlag::QUEEN_PROMO_CAPTURE)));
+    CHECK(contains(moves, Move(LERFSquare::E7, LERFSquare::F8, MoveFlag::KNIGHT_PROMO_CAPTURE)));
+}
+
+TEST_CASE("generatePawnMoves produces an en passant capture when the target square matches getEnPassantSquare")
+{
+    Position position { parsePosition("8/8/8/3pP3/8/8/8/8 w - d6 0 1") };
+    MoveList moves;
+    MoveGen::generatePawnMoves(position, moves);
+
+    CHECK(moves.size() == 2);
+    CHECK(contains(moves, Move(LERFSquare::E5, LERFSquare::E6, MoveFlag::QUIET)));
+    CHECK(contains(moves, Move(LERFSquare::E5, LERFSquare::D6, MoveFlag::EP_CAPTURE)));
+}
+
+TEST_CASE("generatePawnMoves pushes black pawns toward rank 1")
+{
+    Position position { parsePosition("8/4p3/8/8/8/8/8/8 b - - 0 1") };
+    MoveList moves;
+    MoveGen::generatePawnMoves(position, moves);
+
+    CHECK(moves.size() == 2);
+    CHECK(contains(moves, Move(LERFSquare::E7, LERFSquare::E6, MoveFlag::QUIET)));
+    CHECK(contains(moves, Move(LERFSquare::E7, LERFSquare::E5, MoveFlag::DOUBLE_PAWN_PUSH)));
+}
+
+TEST_CASE("generatePawnMoves captures diagonally toward rank 1 for black")
+{
+    Position position { parsePosition("8/8/8/4p3/3P1P2/8/8/8 b - - 0 1") };
+    MoveList moves;
+    MoveGen::generatePawnMoves(position, moves);
+
+    CHECK(moves.size() == 3);
+    CHECK(countQuiet(moves) == 1);
+    CHECK(countCaptures(moves) == 2);
+    CHECK(contains(moves, Move(LERFSquare::E5, LERFSquare::E4, MoveFlag::QUIET)));
+    CHECK(contains(moves, Move(LERFSquare::E5, LERFSquare::D4, MoveFlag::CAPTURE)));
+    CHECK(contains(moves, Move(LERFSquare::E5, LERFSquare::F4, MoveFlag::CAPTURE)));
 }

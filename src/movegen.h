@@ -11,6 +11,7 @@ namespace MoveGen
 void generateKnightMoves(const Position& position, MoveList& moves);
 void generateKingMoves(const Position& position, MoveList& moves);
 void generateSlidingMoves(const Position& position, MoveList& moves);
+void generatePawnMoves(const Position& position, MoveList& moves);
 
 } // namespace MoveGen
 

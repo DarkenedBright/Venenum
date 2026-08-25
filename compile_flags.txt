@@ -1,0 +1,17 @@
+-std=c++23
+-Isrc
+-Wall
+-Wextra
+-Wshadow
+-Wnon-virtual-dtor
+-Wold-style-cast
+-Wcast-align
+-Woverloaded-virtual
+-Wconversion
+-Wsign-conversion
+-Wnull-dereference
+-Wdouble-promotion
+-Wformat=2
+-Wimplicit-fallthrough
+-Werror
+-pedantic-errors

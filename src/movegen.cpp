@@ -2,7 +2,7 @@
 #include "attack.h" // Attack::knightAttacks, Attack::kingAttacks, Attack::bishopAttacks, Attack::rookAttacks, Attack::queenAttacks, Attack::pawnAttacks, Attack::isSquareAttacked
 #include "bitboard.h" // getLSBIndex, resetBit, squareToBitboard
 #include "move.h" // Move, MoveFlag, MoveList
-#include "position.h" // Position
+#include "position.h" // Position, UnmakeState
 #include "types.h" // LERFSquare, Piece, Rank, Side, Castle, U64
 
 #include <utility> // std::to_underlying
@@ -130,6 +130,30 @@ void tryAddCastleMove(const Position& position, Side side, Castle requiredRight,
     moves.emplace_back(kingFrom, destination, flag);
 }
 
+/*
+ * Whether kingSide's king is currently attacked. Precondition:
+ * position has exactly one king of kingSide on the board.
+ */
+[[nodiscard]] bool isKingInCheck(const Position& position, Side kingSide)
+{
+    Side enemySide { kingSide == Side::WHITE ? Side::BLACK : Side::WHITE };
+    Piece kingPiece { kingSide == Side::WHITE ? Piece::WHITE_KING : Piece::BLACK_KING };
+    LERFSquare kingSquare { static_cast<LERFSquare>(getLSBIndex(position.getPieceBitboard(kingPiece))) };
+
+    Piece enemyPawn { enemySide == Side::WHITE ? Piece::WHITE_PAWN : Piece::BLACK_PAWN };
+    Piece enemyKnight { enemySide == Side::WHITE ? Piece::WHITE_KNIGHT : Piece::BLACK_KNIGHT };
+    Piece enemyBishop { enemySide == Side::WHITE ? Piece::WHITE_BISHOP : Piece::BLACK_BISHOP };
+    Piece enemyRook { enemySide == Side::WHITE ? Piece::WHITE_ROOK : Piece::BLACK_ROOK };
+    Piece enemyQueen { enemySide == Side::WHITE ? Piece::WHITE_QUEEN : Piece::BLACK_QUEEN };
+    Piece enemyKing { enemySide == Side::WHITE ? Piece::WHITE_KING : Piece::BLACK_KING };
+
+    return Attack::isSquareAttacked(kingSquare, enemySide, position.getPieceBitboard(Piece::ALL_PIECES),
+        position.getPieceBitboard(enemyPawn), position.getPieceBitboard(enemyKnight),
+        position.getPieceBitboard(enemyBishop) | position.getPieceBitboard(enemyQueen),
+        position.getPieceBitboard(enemyRook) | position.getPieceBitboard(enemyQueen),
+        position.getPieceBitboard(enemyKing));
+}
+
 } // namespace
 
 void MoveGen::generateKnightMoves(const Position& position, MoveList& moves)
@@ -242,4 +266,28 @@ void MoveGen::generatePawnMoves(const Position& position, MoveList& moves)
 
         pawns = resetBit(pawns, fromSq);
     }
+}
+
+MoveList MoveGen::generateLegalMoves(const Position& position)
+{
+    MoveList pseudoLegalMoves;
+    generateKnightMoves(position, pseudoLegalMoves);
+    generateKingMoves(position, pseudoLegalMoves);
+    generateSlidingMoves(position, pseudoLegalMoves);
+    generatePawnMoves(position, pseudoLegalMoves);
+
+    Side side { position.getSideToMove() };
+    Position working { position };
+    MoveList legalMoves;
+    for(Move move : pseudoLegalMoves)
+    {
+        UnmakeState saved { working.makeMove(move) };
+        if(!isKingInCheck(working, side))
+        {
+            legalMoves.push_back(move);
+        }
+        working.unmakeMove(move, saved);
+    }
+
+    return legalMoves;
 }

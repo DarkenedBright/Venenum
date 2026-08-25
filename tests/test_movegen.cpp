@@ -1,7 +1,7 @@
 #include "doctest.h" // TEST_CASE, CHECK, REQUIRE
 #include "move.h" // Move, MoveFlag, MoveList
-#include "movegen.h" // MoveGen::generateKnightMoves, MoveGen::generateKingMoves, MoveGen::generateSlidingMoves, MoveGen::generatePawnMoves
-#include "position.h" // Position
+#include "movegen.h" // MoveGen::generateKnightMoves, MoveGen::generateKingMoves, MoveGen::generateSlidingMoves, MoveGen::generatePawnMoves, MoveGen::generateLegalMoves
+#include "position.h" // Position, STANDARD_START_FEN
 #include "types.h" // LERFSquare
 
 namespace
@@ -341,4 +341,47 @@ TEST_CASE("generatePawnMoves captures diagonally toward rank 1 for black")
     CHECK(contains(moves, Move(LERFSquare::E5, LERFSquare::E4, MoveFlag::QUIET)));
     CHECK(contains(moves, Move(LERFSquare::E5, LERFSquare::D4, MoveFlag::CAPTURE)));
     CHECK(contains(moves, Move(LERFSquare::E5, LERFSquare::F4, MoveFlag::CAPTURE)));
+}
+
+TEST_CASE("generateLegalMoves produces exactly 20 moves from the starting position")
+{
+    Position position { parsePosition(STANDARD_START_FEN) };
+    MoveList moves { MoveGen::generateLegalMoves(position) };
+
+    CHECK(moves.size() == 20);
+}
+
+TEST_CASE("generateLegalMoves in check keeps only moves that capture, block, or move the king out of check")
+{
+    // White king e1 in check from a black rook on e8 along the open e-file.
+    // Queen d1 can block on e2; knight b1 can neither block nor capture.
+    Position position { parsePosition("4r3/8/8/8/8/8/8/1N1QK3 w - - 0 1") };
+    MoveList moves { MoveGen::generateLegalMoves(position) };
+
+    CHECK(moves.size() == 4);
+    CHECK(contains(moves, Move(LERFSquare::D1, LERFSquare::E2, MoveFlag::QUIET))); // queen blocks the check
+    CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::D2, MoveFlag::QUIET))); // king steps off the e-file
+    CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::F1, MoveFlag::QUIET)));
+    CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::F2, MoveFlag::QUIET)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E1, LERFSquare::E2, MoveFlag::QUIET))); // still on the e-file, still attacked
+    CHECK_FALSE(contains(moves, Move(LERFSquare::B1, LERFSquare::C3, MoveFlag::QUIET))); // addresses neither block nor capture
+    CHECK_FALSE(contains(moves, Move(LERFSquare::D1, LERFSquare::D2, MoveFlag::QUIET))); // doesn't block the e-file
+}
+
+TEST_CASE("generateLegalMoves excludes moves that walk an absolutely pinned piece off its pin line")
+{
+    // White bishop e3 is pinned to the king by a black rook on e8: any
+    // diagonal move exposes the king, so every bishop move is illegal,
+    // while the king itself may still freely move (including onto the
+    // e-file at e2, since the bishop is still there to block until it
+    // is the piece that moves).
+    Position position { parsePosition("4r3/8/8/8/8/4B3/8/4K3 w - - 0 1") };
+    MoveList moves { MoveGen::generateLegalMoves(position) };
+
+    CHECK(moves.size() == 5);
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E3, LERFSquare::D4, MoveFlag::QUIET)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E3, LERFSquare::C5, MoveFlag::QUIET)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E3, LERFSquare::F4, MoveFlag::QUIET)));
+    CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::D1, MoveFlag::QUIET)));
+    CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::E2, MoveFlag::QUIET)));
 }

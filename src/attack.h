@@ -497,6 +497,31 @@ namespace Attack
     return KING_ATTACKS[std::to_underlying(sq)];
 }
 
+/*
+ * Return whether square is attacked by any piece of bySide, given the
+ * board's occupancy and each attacking piece type's bitboard (bishops
+ * and queens combined into one parameter, rooks and queens combined
+ * into another, since both attack like the sliding piece being probed
+ * for). Works by probing outward from square using the attacked
+ * piece's own attack pattern: e.g. a knight-attack pattern from square
+ * hits an enemy knight exactly when a knight on that enemy square
+ * would attack back into square, since the knight-move relation is
+ * symmetric (and likewise for king/bishop/rook/queen). Pawns are the
+ * one asymmetric case, so the probe uses the opposite side's pawn
+ * attack pattern from square to find where an attacking pawn would
+ * have to stand.
+ */
+[[nodiscard]] inline bool isSquareAttacked(LERFSquare square, Side bySide, U64 occupancy, U64 pawns, U64 knights, U64 bishopsAndQueens, U64 rooksAndQueens, U64 king)
+{
+    Side attackingPawnOrigin { bySide == Side::WHITE ? Side::BLACK : Side::WHITE };
+    if(pawnAttacks(attackingPawnOrigin, square) & pawns) return true;
+    if(knightAttacks(square) & knights) return true;
+    if(kingAttacks(square) & king) return true;
+    if(bishopAttacks(square, occupancy) & bishopsAndQueens) return true;
+    if(rookAttacks(square, occupancy) & rooksAndQueens) return true;
+    return false;
+}
+
 } // namespace Attack
 
 #endif

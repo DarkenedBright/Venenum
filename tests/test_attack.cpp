@@ -1,4 +1,5 @@
-#include "attack.h" // PAWN_ATTACKS, KNIGHT_ATTACKS, KING_ATTACKS, ROOK_FANCY_MAGICS, ROOK_ATTACKS_TABLE, BISHOP_FANCY_MAGICS, BISHOP_ATTACKS_TABLE, calculateRookAttacks, calculateBishopAttacks, Attack::rookAttacks, Attack::bishopAttacks, Attack::queenAttacks, Attack::pawnAttacks, Attack::knightAttacks, Attack::kingAttacks
+#include "attack.h" // PAWN_ATTACKS, KNIGHT_ATTACKS, KING_ATTACKS, ROOK_FANCY_MAGICS, ROOK_ATTACKS_TABLE, BISHOP_FANCY_MAGICS, BISHOP_ATTACKS_TABLE, calculateRookAttacks, calculateBishopAttacks, Attack::rookAttacks, Attack::bishopAttacks, Attack::queenAttacks, Attack::pawnAttacks, Attack::knightAttacks, Attack::kingAttacks, Attack::isSquareAttacked
+#include "bitboard.h" // squareToBitboard
 #include "doctest.h" // TEST_CASE, CHECK
 #include "types.h" // U64, LERFSquare, Side, FancyMagic
 
@@ -111,4 +112,77 @@ TEST_CASE("Attack::kingAttacks matches KING_ATTACKS at corner squares")
     CHECK(Attack::kingAttacks(LERFSquare::H1) == 0xC040ULL);
     CHECK(Attack::kingAttacks(LERFSquare::A8) == 0x203000000000000ULL);
     CHECK(Attack::kingAttacks(LERFSquare::H8) == 0x40C0000000000000ULL);
+}
+
+TEST_CASE("isSquareAttacked detects a rook attack along an open file, and is blocked by an occupant")
+{
+    U64 rooks { squareToBitboard(std::to_underlying(LERFSquare::A1)) };
+    U64 blocker { squareToBitboard(std::to_underlying(LERFSquare::A4)) };
+    U64 occupancy { rooks | blocker };
+
+    CHECK(Attack::isSquareAttacked(LERFSquare::A4, Side::WHITE, occupancy, 0ULL, 0ULL, 0ULL, rooks, 0ULL));
+    CHECK_FALSE(Attack::isSquareAttacked(LERFSquare::A5, Side::WHITE, occupancy, 0ULL, 0ULL, 0ULL, rooks, 0ULL));
+    CHECK_FALSE(Attack::isSquareAttacked(LERFSquare::B2, Side::WHITE, occupancy, 0ULL, 0ULL, 0ULL, rooks, 0ULL));
+}
+
+TEST_CASE("isSquareAttacked detects a bishop attack along an open diagonal, and is blocked by an occupant")
+{
+    U64 bishops { squareToBitboard(std::to_underlying(LERFSquare::C1)) };
+    U64 blocker { squareToBitboard(std::to_underlying(LERFSquare::E3)) };
+    U64 occupancy { bishops | blocker };
+
+    CHECK(Attack::isSquareAttacked(LERFSquare::E3, Side::WHITE, occupancy, 0ULL, 0ULL, bishops, 0ULL, 0ULL));
+    CHECK_FALSE(Attack::isSquareAttacked(LERFSquare::F4, Side::WHITE, occupancy, 0ULL, 0ULL, bishops, 0ULL, 0ULL));
+    CHECK_FALSE(Attack::isSquareAttacked(LERFSquare::D1, Side::WHITE, occupancy, 0ULL, 0ULL, bishops, 0ULL, 0ULL));
+}
+
+TEST_CASE("isSquareAttacked detects a queen attack as the union of rook- and bishop-like reach")
+{
+    U64 queen { squareToBitboard(std::to_underlying(LERFSquare::D1)) };
+    U64 occupancy { queen };
+
+    CHECK(Attack::isSquareAttacked(LERFSquare::D8, Side::WHITE, occupancy, 0ULL, 0ULL, queen, queen, 0ULL));
+    CHECK(Attack::isSquareAttacked(LERFSquare::H5, Side::WHITE, occupancy, 0ULL, 0ULL, queen, queen, 0ULL));
+    CHECK_FALSE(Attack::isSquareAttacked(LERFSquare::E3, Side::WHITE, occupancy, 0ULL, 0ULL, queen, queen, 0ULL));
+}
+
+TEST_CASE("isSquareAttacked detects a knight attack")
+{
+    U64 knights { squareToBitboard(std::to_underlying(LERFSquare::D4)) };
+
+    CHECK(Attack::isSquareAttacked(LERFSquare::E6, Side::WHITE, knights, 0ULL, knights, 0ULL, 0ULL, 0ULL));
+    CHECK_FALSE(Attack::isSquareAttacked(LERFSquare::D6, Side::WHITE, knights, 0ULL, knights, 0ULL, 0ULL, 0ULL));
+}
+
+TEST_CASE("isSquareAttacked detects a king attack")
+{
+    U64 king { squareToBitboard(std::to_underlying(LERFSquare::E1)) };
+
+    CHECK(Attack::isSquareAttacked(LERFSquare::E2, Side::WHITE, king, 0ULL, 0ULL, 0ULL, 0ULL, king));
+    CHECK_FALSE(Attack::isSquareAttacked(LERFSquare::E3, Side::WHITE, king, 0ULL, 0ULL, 0ULL, 0ULL, king));
+}
+
+TEST_CASE("isSquareAttacked detects pawn attacks in the correct direction for each side")
+{
+    U64 whitePawn { squareToBitboard(std::to_underlying(LERFSquare::D2)) };
+    CHECK(Attack::isSquareAttacked(LERFSquare::E3, Side::WHITE, whitePawn, whitePawn, 0ULL, 0ULL, 0ULL, 0ULL));
+    CHECK_FALSE(Attack::isSquareAttacked(LERFSquare::E1, Side::WHITE, whitePawn, whitePawn, 0ULL, 0ULL, 0ULL, 0ULL));
+
+    U64 blackPawn { squareToBitboard(std::to_underlying(LERFSquare::D7)) };
+    CHECK(Attack::isSquareAttacked(LERFSquare::E6, Side::BLACK, blackPawn, blackPawn, 0ULL, 0ULL, 0ULL, 0ULL));
+    CHECK_FALSE(Attack::isSquareAttacked(LERFSquare::E8, Side::BLACK, blackPawn, blackPawn, 0ULL, 0ULL, 0ULL, 0ULL));
+}
+
+TEST_CASE("isSquareAttacked returns true if attacked by any one of multiple attacker types, false if none reach")
+{
+    U64 knights { squareToBitboard(std::to_underlying(LERFSquare::B1)) };
+    U64 rooksAndQueens { squareToBitboard(std::to_underlying(LERFSquare::H4)) };
+    U64 occupancy { knights | rooksAndQueens };
+
+    // C3 is reachable by the knight on B1 but not the rook on H4.
+    CHECK(Attack::isSquareAttacked(LERFSquare::C3, Side::WHITE, occupancy, 0ULL, knights, 0ULL, rooksAndQueens, 0ULL));
+    // D4 is reachable by the rook on H4 but not the knight on B1.
+    CHECK(Attack::isSquareAttacked(LERFSquare::D4, Side::WHITE, occupancy, 0ULL, knights, 0ULL, rooksAndQueens, 0ULL));
+    // B8 is reachable by neither.
+    CHECK_FALSE(Attack::isSquareAttacked(LERFSquare::B8, Side::WHITE, occupancy, 0ULL, knights, 0ULL, rooksAndQueens, 0ULL));
 }

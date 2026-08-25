@@ -426,4 +426,77 @@ inline constexpr auto BISHOP_TABLES { buildBishopTables() };
 inline constexpr const auto& BISHOP_FANCY_MAGICS { BISHOP_TABLES.magics };
 inline constexpr const auto& BISHOP_ATTACKS_TABLE { BISHOP_TABLES.table };
 
+/*
+ * Runtime attack queries. Unlike the tables above, these depend on
+ * a board occupancy that's only known at runtime, so they can't be
+ * consteval/constexpr themselves -- they just index into the tables
+ * that were.
+ */
+namespace Attack
+{
+
+/*
+ * Return a bitboard of all squares a rook on sq attacks, given the
+ * board's current occupancy (including squares occupied by blockers,
+ * whether friend or foe -- callers are responsible for masking those
+ * out if they only want empty/enemy-occupied destinations).
+ */
+[[nodiscard]] inline U64 rookAttacks(LERFSquare sq, U64 occupancy)
+{
+    const FancyMagic& magic { ROOK_FANCY_MAGICS[static_cast<std::size_t>(std::to_underlying(sq))] };
+    U64 index { ((occupancy & magic.occupancyMask) * magic.magicNumber) >> magic.shift };
+    return ROOK_ATTACKS_TABLE[magic.offset + static_cast<std::size_t>(index)];
+}
+
+/*
+ * Return a bitboard of all squares a bishop on sq attacks, given the
+ * board's current occupancy. See rookAttacks() for the blocker-masking
+ * caveat.
+ */
+[[nodiscard]] inline U64 bishopAttacks(LERFSquare sq, U64 occupancy)
+{
+    const FancyMagic& magic { BISHOP_FANCY_MAGICS[static_cast<std::size_t>(std::to_underlying(sq))] };
+    U64 index { ((occupancy & magic.occupancyMask) * magic.magicNumber) >> magic.shift };
+    return BISHOP_ATTACKS_TABLE[magic.offset + static_cast<std::size_t>(index)];
+}
+
+/*
+ * Return a bitboard of all squares a queen on sq attacks, given the
+ * board's current occupancy. A queen attacks exactly the union of a
+ * rook's and a bishop's attacks from the same square.
+ */
+[[nodiscard]] inline U64 queenAttacks(LERFSquare sq, U64 occupancy)
+{
+    return rookAttacks(sq, occupancy) | bishopAttacks(sq, occupancy);
+}
+
+/*
+ * Return a bitboard of all squares a side's pawn on sq attacks.
+ * Thin, typed wrapper over PAWN_ATTACKS.
+ */
+[[nodiscard]] inline U64 pawnAttacks(Side side, LERFSquare sq)
+{
+    return PAWN_ATTACKS[std::to_underlying(side)][std::to_underlying(sq)];
+}
+
+/*
+ * Return a bitboard of all squares a knight on sq attacks.
+ * Thin, typed wrapper over KNIGHT_ATTACKS.
+ */
+[[nodiscard]] inline U64 knightAttacks(LERFSquare sq)
+{
+    return KNIGHT_ATTACKS[std::to_underlying(sq)];
+}
+
+/*
+ * Return a bitboard of all squares a king on sq attacks.
+ * Thin, typed wrapper over KING_ATTACKS.
+ */
+[[nodiscard]] inline U64 kingAttacks(LERFSquare sq)
+{
+    return KING_ATTACKS[std::to_underlying(sq)];
+}
+
+} // namespace Attack
+
 #endif

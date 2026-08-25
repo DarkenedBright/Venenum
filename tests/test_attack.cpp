@@ -1,4 +1,4 @@
-#include "attack.h" // PAWN_ATTACKS, KNIGHT_ATTACKS, KING_ATTACKS, ROOK_FANCY_MAGICS, ROOK_ATTACKS_TABLE, BISHOP_FANCY_MAGICS, BISHOP_ATTACKS_TABLE, calculateRookAttacks, calculateBishopAttacks
+#include "attack.h" // PAWN_ATTACKS, KNIGHT_ATTACKS, KING_ATTACKS, ROOK_FANCY_MAGICS, ROOK_ATTACKS_TABLE, BISHOP_FANCY_MAGICS, BISHOP_ATTACKS_TABLE, calculateRookAttacks, calculateBishopAttacks, Attack::rookAttacks, Attack::bishopAttacks, Attack::queenAttacks, Attack::pawnAttacks, Attack::knightAttacks, Attack::kingAttacks
 #include "doctest.h" // TEST_CASE, CHECK
 #include "types.h" // U64, LERFSquare, Side, FancyMagic
 
@@ -45,40 +45,70 @@ TEST_CASE("pawn attacks are zero from the ranks a pawn can never be on")
  * between distinct occupancies on the same square -- a class of bug the
  * ray-walk function can't cause and the table-build code doesn't self-check.
  */
-TEST_CASE("rook fancy-magic table matches a naive ray-walk for every occupancy subset")
+TEST_CASE("Attack::rookAttacks matches a naive ray-walk for every occupancy subset")
 {
     for(int sq { std::to_underlying(LERFSquare::A1) }; sq < std::to_underlying(LERFSquare::NUM_SQUARES); ++sq)
     {
         std::size_t sqIndex { static_cast<std::size_t>(sq) };
+        LERFSquare square { static_cast<LERFSquare>(sq) };
         const FancyMagic& magic { ROOK_FANCY_MAGICS[sqIndex] };
 
         U64 occupancy { 0ULL };
         do
         {
-            U64 index { (occupancy * magic.magicNumber) >> magic.shift };
-            U64 tableEntry { ROOK_ATTACKS_TABLE[magic.offset + static_cast<std::size_t>(index)] };
-            CHECK(tableEntry == calculateRookAttacks(sq, occupancy));
+            CHECK(Attack::rookAttacks(square, occupancy) == calculateRookAttacks(sq, occupancy));
 
             occupancy = (occupancy - magic.occupancyMask) & magic.occupancyMask;
         } while(occupancy);
     }
 }
 
-TEST_CASE("bishop fancy-magic table matches a naive ray-walk for every occupancy subset")
+TEST_CASE("Attack::bishopAttacks matches a naive ray-walk for every occupancy subset")
 {
     for(int sq { std::to_underlying(LERFSquare::A1) }; sq < std::to_underlying(LERFSquare::NUM_SQUARES); ++sq)
     {
         std::size_t sqIndex { static_cast<std::size_t>(sq) };
+        LERFSquare square { static_cast<LERFSquare>(sq) };
         const FancyMagic& magic { BISHOP_FANCY_MAGICS[sqIndex] };
 
         U64 occupancy { 0ULL };
         do
         {
-            U64 index { (occupancy * magic.magicNumber) >> magic.shift };
-            U64 tableEntry { BISHOP_ATTACKS_TABLE[magic.offset + static_cast<std::size_t>(index)] };
-            CHECK(tableEntry == calculateBishopAttacks(sq, occupancy));
+            CHECK(Attack::bishopAttacks(square, occupancy) == calculateBishopAttacks(sq, occupancy));
 
             occupancy = (occupancy - magic.occupancyMask) & magic.occupancyMask;
         } while(occupancy);
     }
+}
+
+TEST_CASE("Attack::queenAttacks is the union of rook and bishop attacks from the same square")
+{
+    U64 occupancy { 0x0000240000810000ULL };
+    for(int sq { std::to_underlying(LERFSquare::A1) }; sq < std::to_underlying(LERFSquare::NUM_SQUARES); ++sq)
+    {
+        LERFSquare square { static_cast<LERFSquare>(sq) };
+        CHECK(Attack::queenAttacks(square, occupancy) == (Attack::rookAttacks(square, occupancy) | Attack::bishopAttacks(square, occupancy)));
+    }
+}
+
+TEST_CASE("Attack::pawnAttacks matches PAWN_ATTACKS")
+{
+    CHECK(Attack::pawnAttacks(Side::WHITE, LERFSquare::E2) == PAWN_ATTACKS[std::to_underlying(Side::WHITE)][std::to_underlying(LERFSquare::E2)]);
+    CHECK(Attack::pawnAttacks(Side::BLACK, LERFSquare::E7) == PAWN_ATTACKS[std::to_underlying(Side::BLACK)][std::to_underlying(LERFSquare::E7)]);
+}
+
+TEST_CASE("Attack::knightAttacks matches KNIGHT_ATTACKS at corner squares")
+{
+    CHECK(Attack::knightAttacks(LERFSquare::A1) == 0x20400ULL);
+    CHECK(Attack::knightAttacks(LERFSquare::H1) == 0x402000ULL);
+    CHECK(Attack::knightAttacks(LERFSquare::A8) == 0x4020000000000ULL);
+    CHECK(Attack::knightAttacks(LERFSquare::H8) == 0x20400000000000ULL);
+}
+
+TEST_CASE("Attack::kingAttacks matches KING_ATTACKS at corner squares")
+{
+    CHECK(Attack::kingAttacks(LERFSquare::A1) == 0x302ULL);
+    CHECK(Attack::kingAttacks(LERFSquare::H1) == 0xC040ULL);
+    CHECK(Attack::kingAttacks(LERFSquare::A8) == 0x203000000000000ULL);
+    CHECK(Attack::kingAttacks(LERFSquare::H8) == 0x40C0000000000000ULL);
 }

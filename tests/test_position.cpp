@@ -1,9 +1,25 @@
+#include "bitboard.h" // squareToBitboard
 #include "doctest.h" // TEST_CASE, CHECK, REQUIRE
-#include "position.h" // Position, FenParseError, describe, STANDARD_START_FEN
+#include "move.h" // Move, MoveFlag
+#include "position.h" // Position, FenParseError, describe, STANDARD_START_FEN, UnmakeState
 #include "types.h" // U64, Piece, Side, Castle, LERFSquare
 
 #include <cstddef> // std::size_t
 #include <iterator> // std::size
+#include <string> // std::string
+#include <utility> // std::to_underlying
+
+namespace
+{
+
+[[nodiscard]] Position parsePosition(const std::string& fen)
+{
+    auto result { Position::fromFen(fen) };
+    REQUIRE(result.has_value());
+    return result.value();
+}
+
+} // namespace
 
 TEST_CASE("fromFen parses the standard start position")
 {
@@ -198,5 +214,146 @@ TEST_CASE("calculatePositionHash distinguishes positions differing in one dimens
         {
             CHECK(hashes[i] != hashes[j]);
         }
+    }
+}
+
+TEST_CASE("makeMove on a quiet move relocates the piece, flips side to move, and advances ply/fifty-move count")
+{
+    Position position { parsePosition(STANDARD_START_FEN) };
+    [[maybe_unused]] UnmakeState saved { position.makeMove(Move(LERFSquare::B1, LERFSquare::C3, MoveFlag::QUIET)) };
+
+    CHECK((position.getPieceBitboard(Piece::WHITE_KNIGHT) & squareToBitboard(std::to_underlying(LERFSquare::C3))) != 0);
+    CHECK((position.getPieceBitboard(Piece::WHITE_KNIGHT) & squareToBitboard(std::to_underlying(LERFSquare::B1))) == 0);
+    CHECK(position.getSideToMove() == Side::BLACK);
+    CHECK(position.getPly() == 1);
+    CHECK(position.getEnPassantSquare() == LERFSquare::NO_SQ);
+    CHECK(position.getFiftyMovesCount() == 1);
+}
+
+TEST_CASE("makeMove on a double pawn push sets the en passant square and resets the fifty-move count")
+{
+    Position position { parsePosition(STANDARD_START_FEN) };
+    [[maybe_unused]] UnmakeState saved { position.makeMove(Move(LERFSquare::E2, LERFSquare::E4, MoveFlag::DOUBLE_PAWN_PUSH)) };
+
+    CHECK((position.getPieceBitboard(Piece::WHITE_PAWN) & squareToBitboard(std::to_underlying(LERFSquare::E4))) != 0);
+    CHECK((position.getPieceBitboard(Piece::WHITE_PAWN) & squareToBitboard(std::to_underlying(LERFSquare::E2))) == 0);
+    CHECK(position.getEnPassantSquare() == LERFSquare::E3);
+    CHECK(position.getFiftyMovesCount() == 0);
+}
+
+TEST_CASE("makeMove on a capture removes the captured piece and reports it in the UnmakeState")
+{
+    Position position { parsePosition("8/8/8/3n4/4P3/8/8/8 w - - 12 1") };
+    UnmakeState saved { position.makeMove(Move(LERFSquare::E4, LERFSquare::D5, MoveFlag::CAPTURE)) };
+
+    CHECK(saved.capturedPiece == Piece::BLACK_KNIGHT);
+    CHECK((position.getPieceBitboard(Piece::WHITE_PAWN) & squareToBitboard(std::to_underlying(LERFSquare::D5))) != 0);
+    CHECK(position.getPieceBitboard(Piece::BLACK_KNIGHT) == 0);
+    CHECK(position.getFiftyMovesCount() == 0);
+}
+
+TEST_CASE("makeMove on an en passant capture removes the pawn behind the destination square")
+{
+    Position position { parsePosition("8/8/8/3pP3/8/8/8/8 w - d6 0 1") };
+    UnmakeState saved { position.makeMove(Move(LERFSquare::E5, LERFSquare::D6, MoveFlag::EP_CAPTURE)) };
+
+    CHECK(saved.capturedPiece == Piece::BLACK_PAWN);
+    CHECK((position.getPieceBitboard(Piece::WHITE_PAWN) & squareToBitboard(std::to_underlying(LERFSquare::D6))) != 0);
+    CHECK(position.getPieceBitboard(Piece::BLACK_PAWN) == 0);
+    CHECK(position.getEnPassantSquare() == LERFSquare::NO_SQ);
+}
+
+TEST_CASE("makeMove on a kingside castle moves the rook alongside the king and clears both castling rights")
+{
+    Position position { parsePosition("8/8/8/8/8/8/8/4K2R w KQ - 0 1") };
+    [[maybe_unused]] UnmakeState saved { position.makeMove(Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE)) };
+
+    CHECK((position.getPieceBitboard(Piece::WHITE_KING) & squareToBitboard(std::to_underlying(LERFSquare::G1))) != 0);
+    CHECK((position.getPieceBitboard(Piece::WHITE_ROOK) & squareToBitboard(std::to_underlying(LERFSquare::F1))) != 0);
+    CHECK((position.getPieceBitboard(Piece::WHITE_ROOK) & squareToBitboard(std::to_underlying(LERFSquare::H1))) == 0);
+    CHECK(std::to_underlying(position.getCastlingRights()) == 0);
+}
+
+TEST_CASE("makeMove on a queenside castle moves the rook alongside the king")
+{
+    Position position { parsePosition("r3k3/8/8/8/8/8/8/8 b q - 0 1") };
+    [[maybe_unused]] UnmakeState saved { position.makeMove(Move(LERFSquare::E8, LERFSquare::C8, MoveFlag::QUEEN_CASTLE)) };
+
+    CHECK((position.getPieceBitboard(Piece::BLACK_KING) & squareToBitboard(std::to_underlying(LERFSquare::C8))) != 0);
+    CHECK((position.getPieceBitboard(Piece::BLACK_ROOK) & squareToBitboard(std::to_underlying(LERFSquare::D8))) != 0);
+    CHECK((position.getPieceBitboard(Piece::BLACK_ROOK) & squareToBitboard(std::to_underlying(LERFSquare::A8))) == 0);
+    CHECK(std::to_underlying(position.getCastlingRights()) == 0);
+}
+
+TEST_CASE("makeMove on a promotion replaces the pawn with the promoted piece")
+{
+    Position position { parsePosition("8/4P3/8/8/8/8/8/8 w - - 0 1") };
+    [[maybe_unused]] UnmakeState saved { position.makeMove(Move(LERFSquare::E7, LERFSquare::E8, MoveFlag::QUEEN_PROMO)) };
+
+    CHECK(position.getPieceBitboard(Piece::WHITE_PAWN) == 0);
+    CHECK((position.getPieceBitboard(Piece::WHITE_QUEEN) & squareToBitboard(std::to_underlying(LERFSquare::E8))) != 0);
+    CHECK(position.getFiftyMovesCount() == 0);
+}
+
+TEST_CASE("makeMove on a promotion capture replaces the pawn and removes the captured piece")
+{
+    Position position { parsePosition("4n3/3P4/8/8/8/8/8/8 w - - 0 1") };
+    UnmakeState saved { position.makeMove(Move(LERFSquare::D7, LERFSquare::E8, MoveFlag::QUEEN_PROMO_CAPTURE)) };
+
+    CHECK(saved.capturedPiece == Piece::BLACK_KNIGHT);
+    CHECK(position.getPieceBitboard(Piece::WHITE_PAWN) == 0);
+    CHECK((position.getPieceBitboard(Piece::WHITE_QUEEN) & squareToBitboard(std::to_underlying(LERFSquare::E8))) != 0);
+    CHECK(position.getPieceBitboard(Piece::BLACK_KNIGHT) == 0);
+}
+
+TEST_CASE("makeMove clears a rook's castling right when it is captured on its home square")
+{
+    Position position { parsePosition("r3k3/8/8/8/8/8/8/R3K3 w KQq - 0 1") };
+    [[maybe_unused]] UnmakeState saved { position.makeMove(Move(LERFSquare::A1, LERFSquare::A8, MoveFlag::CAPTURE)) };
+
+    CHECK(position.getCastlingRights() == Castle::WHITE_KING_CASTLE);
+}
+
+TEST_CASE("makeMove increments the fifty-move count on a non-pawn, non-capture move")
+{
+    Position position { parsePosition("8/8/8/8/8/8/8/N7 w - - 5 1") };
+    [[maybe_unused]] UnmakeState saved { position.makeMove(Move(LERFSquare::A1, LERFSquare::B3, MoveFlag::QUIET)) };
+
+    CHECK(position.getFiftyMovesCount() == 6);
+}
+
+TEST_CASE("unmakeMove is a perfect inverse of makeMove across every move kind")
+{
+    struct Case { std::string fen; Move move; };
+    Case cases[] {
+        { STANDARD_START_FEN, Move(LERFSquare::B1, LERFSquare::C3, MoveFlag::QUIET) },
+        { STANDARD_START_FEN, Move(LERFSquare::E2, LERFSquare::E4, MoveFlag::DOUBLE_PAWN_PUSH) },
+        { "8/8/8/3n4/4P3/8/8/8 w - - 12 1", Move(LERFSquare::E4, LERFSquare::D5, MoveFlag::CAPTURE) },
+        { "8/8/8/3pP3/8/8/8/8 w - d6 0 1", Move(LERFSquare::E5, LERFSquare::D6, MoveFlag::EP_CAPTURE) },
+        { "8/8/8/8/8/8/8/4K2R w KQ - 0 1", Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE) },
+        { "r3k3/8/8/8/8/8/8/8 b q - 0 1", Move(LERFSquare::E8, LERFSquare::C8, MoveFlag::QUEEN_CASTLE) },
+        { "8/4P3/8/8/8/8/8/8 w - - 0 1", Move(LERFSquare::E7, LERFSquare::E8, MoveFlag::QUEEN_PROMO) },
+        { "4n3/3P4/8/8/8/8/8/8 w - - 0 1", Move(LERFSquare::D7, LERFSquare::E8, MoveFlag::QUEEN_PROMO_CAPTURE) },
+        { "r3k3/8/8/8/8/8/8/R3K3 w KQq - 0 1", Move(LERFSquare::A1, LERFSquare::A8, MoveFlag::CAPTURE) },
+    };
+
+    for(const Case& testCase : cases)
+    {
+        Position before { parsePosition(testCase.fen) };
+        Position after { before };
+        UnmakeState saved { after.makeMove(testCase.move) };
+        after.unmakeMove(testCase.move, saved);
+
+        for(int pieceType { 0 }; pieceType < std::to_underlying(Piece::NUM_PIECES_ALL); ++pieceType)
+        {
+            Piece piece { static_cast<Piece>(pieceType) };
+            CHECK(after.getPieceBitboard(piece) == before.getPieceBitboard(piece));
+        }
+        CHECK(after.getSideToMove() == before.getSideToMove());
+        CHECK(after.getCastlingRights() == before.getCastlingRights());
+        CHECK(after.getEnPassantSquare() == before.getEnPassantSquare());
+        CHECK(after.getFiftyMovesCount() == before.getFiftyMovesCount());
+        CHECK(after.getPly() == before.getPly());
+        CHECK(after.getPositionIdentity() == before.getPositionIdentity());
     }
 }

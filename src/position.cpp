@@ -1,7 +1,8 @@
 #include "bitboard.h" // squareToBitboard()
+#include "move.h" // Move, MoveFlag
 #include "position.h"
 #include "prng.h" // PRNG
-#include "types.h" // U64, Piece, LERFSquare, File, Rank, Side, Castle
+#include "types.h" // U64, Piece, LERFSquare, File, Rank, Side, Castle, RayDirection
 
 #include <cctype> // std::isspace(), std::isdigit()
 #include <expected> // std::expected, std::unexpected
@@ -12,7 +13,71 @@
 #include <string_view> // std::string_view, std::string_view::npos
 #include <utility> // std::to_underlying
 
-/* 
+namespace
+{
+
+[[nodiscard]] Side pieceSide(Piece piece)
+{
+    return std::to_underlying(piece) <= std::to_underlying(Piece::WHITE_KING) ? Side::WHITE : Side::BLACK;
+}
+
+/*
+ * Castling rights lost when a king or rook moves off (or is captured
+ * on) its home square. Applied to both the "from" and "to" square of
+ * every move: a king move clears both rights on that side via its
+ * home square, and a rook being captured on its home square clears
+ * that side's right without needing special-case capture handling.
+ */
+[[nodiscard]] Castle castleRightsLostAt(LERFSquare square)
+{
+    switch(square)
+    {
+        case LERFSquare::E1: return Castle::WHITE_KING_CASTLE | Castle::WHITE_QUEEN_CASTLE;
+        case LERFSquare::A1: return Castle::WHITE_QUEEN_CASTLE;
+        case LERFSquare::H1: return Castle::WHITE_KING_CASTLE;
+        case LERFSquare::E8: return Castle::BLACK_KING_CASTLE | Castle::BLACK_QUEEN_CASTLE;
+        case LERFSquare::A8: return Castle::BLACK_QUEEN_CASTLE;
+        case LERFSquare::H8: return Castle::BLACK_KING_CASTLE;
+        default: return static_cast<Castle>(0);
+    }
+}
+
+[[nodiscard]] Castle clearCastleRights(Castle rights, Castle toClear)
+{
+    return static_cast<Castle>(std::to_underlying(rights) & ~std::to_underlying(toClear));
+}
+
+/*
+ * The rook's from/to squares for a castling move, indexed by which
+ * side is castling and which flag (king- or queen-side) it is.
+ */
+[[nodiscard]] LERFSquare castleRookFrom(Side side, MoveFlag flag)
+{
+    if(flag == MoveFlag::KING_CASTLE)
+        return side == Side::WHITE ? LERFSquare::H1 : LERFSquare::H8;
+    return side == Side::WHITE ? LERFSquare::A1 : LERFSquare::A8;
+}
+
+[[nodiscard]] LERFSquare castleRookTo(Side side, MoveFlag flag)
+{
+    if(flag == MoveFlag::KING_CASTLE)
+        return side == Side::WHITE ? LERFSquare::F1 : LERFSquare::F8;
+    return side == Side::WHITE ? LERFSquare::D1 : LERFSquare::D8;
+}
+
+/*
+ * The pawn square captured by an en passant move: directly behind
+ * the "to" square from the mover's perspective.
+ */
+[[nodiscard]] LERFSquare enPassantCapturedPawnSquare(Side movingSide, LERFSquare to)
+{
+    int offset { movingSide == Side::WHITE ? std::to_underlying(RayDirection::SOUTH) : std::to_underlying(RayDirection::NORTH) };
+    return static_cast<LERFSquare>(std::to_underlying(to) + offset);
+}
+
+} // namespace
+
+/*
  * Use Zobrist Hashing
  * Credit: Albert L. Zobrist, The University of Wisconsin
  * https://research.cs.wisc.edu/techreports/1970/TR88.pdf
@@ -323,4 +388,133 @@ void Position::print() const
     std::println("Ply: {}", this->ply);
     std::println("Position ID: {}", this->positionIdentity);
     std::println("Side to Move: {}", std::to_underlying(this->sideToMove));
+}
+
+Piece Position::pieceOn(LERFSquare square) const
+{
+    U64 bit { squareToBitboard(std::to_underlying(square)) };
+    for(int pieceType { std::to_underlying(Piece::WHITE_PAWN) }; pieceType <= std::to_underlying(Piece::BLACK_KING); ++pieceType)
+    {
+        if(this->pieceBitboards[pieceType] & bit)
+            return static_cast<Piece>(pieceType);
+    }
+    return Piece::EMPTY;
+}
+
+void Position::addPiece(Piece piece, LERFSquare square)
+{
+    U64 bit { squareToBitboard(std::to_underlying(square)) };
+    Piece allSide { pieceSide(piece) == Side::WHITE ? Piece::WHITE_ALL : Piece::BLACK_ALL };
+    this->pieceBitboards[std::to_underlying(piece)] |= bit;
+    this->pieceBitboards[std::to_underlying(allSide)] |= bit;
+    this->pieceBitboards[std::to_underlying(Piece::ALL_PIECES)] |= bit;
+    this->pieceBitboards[std::to_underlying(Piece::EMPTY)] &= ~bit;
+}
+
+void Position::removePiece(Piece piece, LERFSquare square)
+{
+    U64 bit { squareToBitboard(std::to_underlying(square)) };
+    Piece allSide { pieceSide(piece) == Side::WHITE ? Piece::WHITE_ALL : Piece::BLACK_ALL };
+    this->pieceBitboards[std::to_underlying(piece)] &= ~bit;
+    this->pieceBitboards[std::to_underlying(allSide)] &= ~bit;
+    this->pieceBitboards[std::to_underlying(Piece::ALL_PIECES)] &= ~bit;
+    this->pieceBitboards[std::to_underlying(Piece::EMPTY)] |= bit;
+}
+
+UnmakeState Position::makeMove(Move move)
+{
+    UnmakeState saved {
+        .capturedPiece = Piece::EMPTY,
+        .previousCastlingRights = this->castlingRights,
+        .previousEnPassantSquare = this->enPassantSquare,
+        .previousFiftyMovesCount = this->fiftyMovesCount,
+        .previousPositionIdentity = this->positionIdentity
+    };
+
+    LERFSquare from { move.from() };
+    LERFSquare to { move.to() };
+    Side movingSide { this->sideToMove };
+    Piece movingPiece { this->pieceOn(from) };
+
+    // Remove whatever is captured, before the mover's own piece lands on `to`.
+    if(move.isEnPassant())
+    {
+        LERFSquare capturedSquare { enPassantCapturedPawnSquare(movingSide, to) };
+        saved.capturedPiece = this->pieceOn(capturedSquare);
+        this->removePiece(saved.capturedPiece, capturedSquare);
+    }
+    else if(move.isCapture())
+    {
+        saved.capturedPiece = this->pieceOn(to);
+        this->removePiece(saved.capturedPiece, to);
+    }
+
+    this->removePiece(movingPiece, from);
+    Piece placedPiece { move.isPromotion() ? move.promotionPieceType(movingSide) : movingPiece };
+    this->addPiece(placedPiece, to);
+
+    if(move.isCastle())
+    {
+        Piece rookPiece { movingSide == Side::WHITE ? Piece::WHITE_ROOK : Piece::BLACK_ROOK };
+        LERFSquare rookFrom { castleRookFrom(movingSide, move.flag()) };
+        LERFSquare rookTo { castleRookTo(movingSide, move.flag()) };
+        this->removePiece(rookPiece, rookFrom);
+        this->addPiece(rookPiece, rookTo);
+    }
+
+    this->castlingRights = clearCastleRights(this->castlingRights, castleRightsLostAt(from));
+    this->castlingRights = clearCastleRights(this->castlingRights, castleRightsLostAt(to));
+
+    this->enPassantSquare = move.isDoublePawnPush()
+        ? static_cast<LERFSquare>((std::to_underlying(from) + std::to_underlying(to)) / 2)
+        : LERFSquare::NO_SQ;
+
+    bool isPawnMove { movingPiece == Piece::WHITE_PAWN || movingPiece == Piece::BLACK_PAWN };
+    this->fiftyMovesCount = (isPawnMove || move.isCapture()) ? 0 : this->fiftyMovesCount + 1;
+
+    ++this->ply;
+    this->sideToMove = (movingSide == Side::WHITE) ? Side::BLACK : Side::WHITE;
+    this->positionIdentity = this->calculatePositionHash();
+
+    return saved;
+}
+
+void Position::unmakeMove(Move move, const UnmakeState& saved)
+{
+    this->sideToMove = (this->sideToMove == Side::WHITE) ? Side::BLACK : Side::WHITE;
+    --this->ply;
+
+    LERFSquare from { move.from() };
+    LERFSquare to { move.to() };
+    Side movingSide { this->sideToMove };
+
+    Piece placedPiece { this->pieceOn(to) };
+    Piece originalPiece { move.isPromotion() ? (movingSide == Side::WHITE ? Piece::WHITE_PAWN : Piece::BLACK_PAWN) : placedPiece };
+
+    this->removePiece(placedPiece, to);
+    this->addPiece(originalPiece, from);
+
+    if(move.isEnPassant())
+    {
+        LERFSquare capturedSquare { enPassantCapturedPawnSquare(movingSide, to) };
+        this->addPiece(saved.capturedPiece, capturedSquare);
+    }
+    else if(move.isCapture())
+    {
+        this->addPiece(saved.capturedPiece, to);
+    }
+
+    if(move.isCastle())
+    {
+        Piece rookPiece { movingSide == Side::WHITE ? Piece::WHITE_ROOK : Piece::BLACK_ROOK };
+        LERFSquare rookFrom { castleRookFrom(movingSide, move.flag()) };
+        LERFSquare rookTo { castleRookTo(movingSide, move.flag()) };
+        this->removePiece(rookPiece, rookTo);
+        this->addPiece(rookPiece, rookFrom);
+    }
+
+    this->castlingRights = saved.previousCastlingRights;
+    this->enPassantSquare = saved.previousEnPassantSquare;
+    this->fiftyMovesCount = saved.previousFiftyMovesCount;
+    this->positionIdentity = saved.previousPositionIdentity;
 }

@@ -1,6 +1,7 @@
 #ifndef POSITION_H
 #define POSITION_H
 
+#include "move.h" // Move
 #include "types.h" //LERFSquare, Piece, File, Rank, Castle, Side, U64
 
 #include <expected> // std::expected, std::unexpected
@@ -52,9 +53,27 @@ enum class FenParseError
     return "unknown FEN parse error";
 }
 
+/*
+ * State a makeMove() cannot be undone from just by looking at the Move
+ * itself -- unmakeMove() needs it handed back to restore the position
+ * exactly. See https://www.chessprogramming.org/Make_Move#Unmake_Move.
+ */
+struct UnmakeState
+{
+    Piece capturedPiece {};
+    Castle previousCastlingRights {};
+    LERFSquare previousEnPassantSquare {};
+    int previousFiftyMovesCount {};
+    U64 previousPositionIdentity {};
+};
+
 class Position
 {
     private:
+        [[nodiscard]] Piece pieceOn(LERFSquare square) const;
+        void addPiece(Piece piece, LERFSquare square);
+        void removePiece(Piece piece, LERFSquare square);
+
         // Static Zobrist keys, initialized with initPositionZobristKeys()
         inline static constexpr U64 POSITION_ZOBRIST_SEED { 0xFD2D8157399E58D4 };
         inline static U64 pieceSquareKeys[std::to_underlying(LERFSquare::NUM_SQUARES)][std::to_underlying(Piece::NUM_PIECES)];
@@ -76,6 +95,9 @@ class Position
         [[nodiscard]] static std::expected<Position, FenParseError> fromFen(const std::string& fenString);
         [[nodiscard]] U64 calculatePositionHash() const;
         void print() const;
+
+        [[nodiscard]] UnmakeState makeMove(Move move);
+        void unmakeMove(Move move, const UnmakeState& saved);
 
         [[nodiscard]] U64 getPieceBitboard(Piece piece) const;
         [[nodiscard]] Side getSideToMove() const;

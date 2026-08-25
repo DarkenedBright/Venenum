@@ -110,6 +110,66 @@ TEST_CASE("generateKingMoves flags an enemy-occupied neighbor as a capture and e
     CHECK_FALSE(contains(moves, Move(LERFSquare::E4, LERFSquare::E5, MoveFlag::QUIET)));
 }
 
+TEST_CASE("generateKingMoves generates both castle moves when rights, squares, and safety all allow it")
+{
+    Position position { parsePosition("8/8/8/8/8/8/8/R3K2R w KQkq - 0 1") };
+    MoveList moves;
+    MoveGen::generateKingMoves(position, moves);
+
+    CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE)));
+    CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::C1, MoveFlag::QUEEN_CASTLE)));
+}
+
+TEST_CASE("generateKingMoves excludes queenside castling when the B-file square is occupied, but keeps kingside")
+{
+    Position position { parsePosition("8/8/8/8/8/8/8/RN2K2R w KQkq - 0 1") };
+    MoveList moves;
+    MoveGen::generateKingMoves(position, moves);
+
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E1, LERFSquare::C1, MoveFlag::QUEEN_CASTLE)));
+    CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE)));
+}
+
+TEST_CASE("generateKingMoves excludes kingside castling when the transit square is attacked, even though it's empty")
+{
+    Position position { parsePosition("5r2/8/8/8/8/8/8/R3K2R w KQkq - 0 1") };
+    MoveList moves;
+    MoveGen::generateKingMoves(position, moves);
+
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE)));
+    CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::C1, MoveFlag::QUEEN_CASTLE)));
+}
+
+TEST_CASE("generateKingMoves excludes both castle moves when the king is in check")
+{
+    Position position { parsePosition("4r3/8/8/8/8/8/8/R3K2R w KQkq - 0 1") };
+    MoveList moves;
+    MoveGen::generateKingMoves(position, moves);
+
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E1, LERFSquare::C1, MoveFlag::QUEEN_CASTLE)));
+}
+
+TEST_CASE("generateKingMoves only generates the castle side actually granted by castlingRights")
+{
+    Position position { parsePosition("8/8/8/8/8/8/8/R3K2R w Kq - 0 1") };
+    MoveList moves;
+    MoveGen::generateKingMoves(position, moves);
+
+    CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E1, LERFSquare::C1, MoveFlag::QUEEN_CASTLE)));
+}
+
+TEST_CASE("generateKingMoves generates both castle moves for black symmetrically")
+{
+    Position position { parsePosition("r3k2r/8/8/8/8/8/8/8 b KQkq - 0 1") };
+    MoveList moves;
+    MoveGen::generateKingMoves(position, moves);
+
+    CHECK(contains(moves, Move(LERFSquare::E8, LERFSquare::G8, MoveFlag::KING_CASTLE)));
+    CHECK(contains(moves, Move(LERFSquare::E8, LERFSquare::C8, MoveFlag::QUEEN_CASTLE)));
+}
+
 TEST_CASE("generateSlidingMoves produces 14 quiet moves for a lone rook in the open")
 {
     Position position { parsePosition("8/8/8/8/3R4/8/8/8 w - - 0 1") };

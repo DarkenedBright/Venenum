@@ -1,9 +1,9 @@
 #include "movegen.h"
-#include "attack.h" // Attack::knightAttacks, Attack::kingAttacks, Attack::bishopAttacks, Attack::rookAttacks, Attack::queenAttacks, Attack::pawnAttacks
+#include "attack.h" // Attack::knightAttacks, Attack::kingAttacks, Attack::bishopAttacks, Attack::rookAttacks, Attack::queenAttacks, Attack::pawnAttacks, Attack::isSquareAttacked
 #include "bitboard.h" // getLSBIndex, resetBit, squareToBitboard
 #include "move.h" // Move, MoveFlag, MoveList
 #include "position.h" // Position
-#include "types.h" // LERFSquare, Piece, Rank, Side, U64
+#include "types.h" // LERFSquare, Piece, Rank, Side, Castle, U64
 
 #include <utility> // std::to_underlying
 
@@ -96,6 +96,40 @@ void addPawnMove(LERFSquare from, LERFSquare to, bool isCaptureMove, bool isProm
     }
 }
 
+/*
+ * Attempt to add one castling move to moves. Requires: castlingRights
+ * grants requiredRight; every square in emptySquaresMask (between
+ * king and rook, including squares the king doesn't pass through but
+ * must still be vacated) is empty; and the king's current square,
+ * the square it passes through, and its destination are all safe
+ * from attack -- a king can't castle out of, through, or into check.
+ * See https://www.chessprogramming.org/Castling#Legality_of_Castling.
+ */
+void tryAddCastleMove(const Position& position, Side side, Castle requiredRight, LERFSquare kingFrom, LERFSquare transitSquare, LERFSquare destination, U64 emptySquaresMask, MoveFlag flag, MoveList& moves)
+{
+    if((position.getCastlingRights() & requiredRight) != requiredRight) return;
+
+    U64 occupancy { position.getPieceBitboard(Piece::ALL_PIECES) };
+    if(occupancy & emptySquaresMask) return;
+
+    Side enemySide { side == Side::WHITE ? Side::BLACK : Side::WHITE };
+    U64 enemyPawns { position.getPieceBitboard(enemySide == Side::WHITE ? Piece::WHITE_PAWN : Piece::BLACK_PAWN) };
+    U64 enemyKnights { position.getPieceBitboard(enemySide == Side::WHITE ? Piece::WHITE_KNIGHT : Piece::BLACK_KNIGHT) };
+    U64 enemyBishops { position.getPieceBitboard(enemySide == Side::WHITE ? Piece::WHITE_BISHOP : Piece::BLACK_BISHOP) };
+    U64 enemyRooks { position.getPieceBitboard(enemySide == Side::WHITE ? Piece::WHITE_ROOK : Piece::BLACK_ROOK) };
+    U64 enemyQueens { position.getPieceBitboard(enemySide == Side::WHITE ? Piece::WHITE_QUEEN : Piece::BLACK_QUEEN) };
+    U64 enemyKing { position.getPieceBitboard(enemySide == Side::WHITE ? Piece::WHITE_KING : Piece::BLACK_KING) };
+
+    LERFSquare squaresToCheck[] { kingFrom, transitSquare, destination };
+    for(LERFSquare square : squaresToCheck)
+    {
+        if(Attack::isSquareAttacked(square, enemySide, occupancy, enemyPawns, enemyKnights, enemyBishops | enemyQueens, enemyRooks | enemyQueens, enemyKing))
+            return;
+    }
+
+    moves.emplace_back(kingFrom, destination, flag);
+}
+
 } // namespace
 
 void MoveGen::generateKnightMoves(const Position& position, MoveList& moves)
@@ -127,6 +161,23 @@ void MoveGen::generateKingMoves(const Position& position, MoveList& moves)
     {
         LERFSquare from { static_cast<LERFSquare>(getLSBIndex(kingBitboard)) };
         serializeMoves(from, Attack::kingAttacks(from), ownPieces, enemyPieces, moves);
+
+        if(side == Side::WHITE)
+        {
+            U64 kingsideEmpty { squareToBitboard(std::to_underlying(LERFSquare::F1)) | squareToBitboard(std::to_underlying(LERFSquare::G1)) };
+            tryAddCastleMove(position, side, Castle::WHITE_KING_CASTLE, LERFSquare::E1, LERFSquare::F1, LERFSquare::G1, kingsideEmpty, MoveFlag::KING_CASTLE, moves);
+
+            U64 queensideEmpty { squareToBitboard(std::to_underlying(LERFSquare::D1)) | squareToBitboard(std::to_underlying(LERFSquare::C1)) | squareToBitboard(std::to_underlying(LERFSquare::B1)) };
+            tryAddCastleMove(position, side, Castle::WHITE_QUEEN_CASTLE, LERFSquare::E1, LERFSquare::D1, LERFSquare::C1, queensideEmpty, MoveFlag::QUEEN_CASTLE, moves);
+        }
+        else
+        {
+            U64 kingsideEmpty { squareToBitboard(std::to_underlying(LERFSquare::F8)) | squareToBitboard(std::to_underlying(LERFSquare::G8)) };
+            tryAddCastleMove(position, side, Castle::BLACK_KING_CASTLE, LERFSquare::E8, LERFSquare::F8, LERFSquare::G8, kingsideEmpty, MoveFlag::KING_CASTLE, moves);
+
+            U64 queensideEmpty { squareToBitboard(std::to_underlying(LERFSquare::D8)) | squareToBitboard(std::to_underlying(LERFSquare::C8)) | squareToBitboard(std::to_underlying(LERFSquare::B8)) };
+            tryAddCastleMove(position, side, Castle::BLACK_QUEEN_CASTLE, LERFSquare::E8, LERFSquare::D8, LERFSquare::C8, queensideEmpty, MoveFlag::QUEEN_CASTLE, moves);
+        }
     }
 }
 

@@ -73,7 +73,7 @@ MAINOBJ = $(BUILDDIR)/venenum.o
 ENGINEOBJ = $(filter-out $(MAINOBJ),$(OBJ))
 
 .DEFAULT_GOAL := all
-.PHONY: all release run test test-release clean help
+.PHONY: all release run test test-release test-perft test-perft-release test-all test-all-release clean help
 
 ## Build the debug binary (default), or whatever $(BUILD) is set to.
 all: $(TARGET)
@@ -99,13 +99,33 @@ $(BUILDDIR) $(BINDIR):
 run: $(TARGET)
 	./$(TARGET)
 
-## Build (if needed) and run the test suite (add BUILD=release for the optimized build).
+## Build (if needed) and run the fast test suite, excluding the slow
+## "perft" doctest suite (add BUILD=release for the optimized build).
+## Deeper perft cases run into the millions of nodes, especially under
+## the debug build's ASan/UBSan instrumentation, so they're kept out
+## of the default loop -- see `test-perft` and `test-all` below.
 test: $(TESTTARGET)
-	./$(TESTTARGET)
+	./$(TESTTARGET) --test-suite-exclude=perft
 
 ## Convenience alias for `make BUILD=release test`.
 test-release:
 	$(MAKE) BUILD=release test
+
+## Build (if needed) and run only the "perft" doctest suite (add BUILD=release for the optimized build).
+test-perft: $(TESTTARGET)
+	./$(TESTTARGET) --test-suite=perft
+
+## Convenience alias for `make BUILD=release test-perft`.
+test-perft-release:
+	$(MAKE) BUILD=release test-perft
+
+## Build (if needed) and run the entire test suite, including perft (add BUILD=release for the optimized build).
+test-all: $(TESTTARGET)
+	./$(TESTTARGET)
+
+## Convenience alias for `make BUILD=release test-all`.
+test-all-release:
+	$(MAKE) BUILD=release test-all
 
 $(TESTTARGET): $(ENGINEOBJ) $(TESTOBJ) | $(TESTBINDIR)
 	$(CXX) $(CXXFLAGS) -o $@ $^
@@ -128,8 +148,10 @@ help:
 	@echo "  make               Build debug binary (-g -O0, ASan/UBSan) at bin/debug/$(APPNAME)"
 	@echo "  make release       Build optimized binary (-O2 -DNDEBUG) at bin/release/$(APPNAME)"
 	@echo "  make run           Build and run the binary (add BUILD=release for the optimized build)"
-	@echo "  make test          Build and run the test suite (add BUILD=release for the optimized build)"
+	@echo "  make test          Build and run the fast test suite, excluding perft (add BUILD=release for the optimized build)"
 	@echo "  make test-release  Convenience alias for 'make BUILD=release test'"
+	@echo "  make test-perft    Build and run only the perft doctest suite (add BUILD=release for the optimized build)"
+	@echo "  make test-all      Build and run the entire test suite, including perft (add BUILD=release for the optimized build)"
 	@echo "  make clean         Remove build/ and bin/"
 	@echo "  make help          Show this message"
 	@echo ""

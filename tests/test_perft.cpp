@@ -1,4 +1,4 @@
-#include "doctest.h" // TEST_CASE, CHECK, REQUIRE
+#include "doctest.h" // TEST_CASE, TEST_SUITE, CHECK, REQUIRE
 #include "movegen.h" // MoveGen::perft
 #include "position.h" // Position, STANDARD_START_FEN
 
@@ -15,6 +15,16 @@ namespace
 }
 
 } // namespace
+
+/*
+ * Deeper perft cases run into the millions of nodes, especially under
+ * the debug build's ASan/UBSan instrumentation, so they're kept in
+ * their own doctest suite: `make test` excludes it for a fast default
+ * iteration loop, while `make test-perft` (or `make test-all`) runs
+ * it. See the Makefile and CONTRIBUTING.md's Testing section.
+ */
+TEST_SUITE("perft")
+{
 
 /*
  * Node counts are the well-known perft reference values for the
@@ -93,3 +103,5 @@ TEST_CASE("perft matches known node counts for the position r4rk1/1pp1qppp/p1np1
     CHECK(MoveGen::perft(position, 3) == 89890);
     CHECK(MoveGen::perft(position, 4) == 3894594);
 }
+
+} // TEST_SUITE("perft")

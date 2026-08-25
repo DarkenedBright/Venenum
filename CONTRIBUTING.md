@@ -45,8 +45,12 @@ language/library features (`-std=c++23`).
 ## Testing
 
 ```sh
-make test           # build (debug, with ASan/UBSan) and run the test suite
-make test-release   # build (optimized) and run the test suite
+make test               # build (debug, with ASan/UBSan) and run the fast test suite
+make test-release       # build (optimized) and run the fast test suite
+make test-perft         # build (debug, with ASan/UBSan) and run only the perft suite
+make test-perft-release # build (optimized) and run only the perft suite
+make test-all           # build (debug, with ASan/UBSan) and run the entire test suite, including perft
+make test-all-release   # build (optimized) and run the entire test suite, including perft
 ```
 
 Tests live under `tests/`, one `test_<module>.cpp` file per tested `src/`
@@ -59,6 +63,16 @@ macro-generated types satisfy it cleanly). Test files link directly against
 the engine's own compiled `build/<debug|release>/*.o` objects (everything
 except `venenum.cpp`'s `main()`), so tests exercise the exact translation
 units the release binary ships rather than a separately-flagged rebuild.
+
+`tests/test_perft.cpp`'s deeper cases run into the millions of nodes, and
+run substantially slower under the debug build's ASan/UBSan instrumentation
+than without it. To keep the default `make test` loop fast, its `TEST_CASE`s
+are wrapped in `TEST_SUITE("perft")` and excluded by default
+(`--test-suite-exclude=perft`); `make test-perft` runs just that suite
+(`--test-suite=perft`), and `make test-all` runs everything with no filter.
+Run `make test-all` (or at least `make test-perft`) before considering a
+move-generation change verified — `make test` alone will not catch a
+regression perft would have caught.
 
 ## Code style
 

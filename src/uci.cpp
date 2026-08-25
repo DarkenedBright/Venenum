@@ -4,7 +4,7 @@
 #include "position.h" // Position, Position::fromFen, describe, STANDARD_START_FEN, UnmakeState
 
 #include <cstdint> // std::uint64_t
-#include <iostream> // std::cin
+#include <iostream> // std::cin, std::cout
 #include <optional> // std::optional
 #include <print> // std::println
 #include <string> //std::string
@@ -30,7 +30,7 @@ void commandUCI()
 {
     // TODO call "id" command
     // TODO print "option" commands
-    std::println("uciok");
+    std::println(std::cout, "uciok");
 }
 
 /*
@@ -43,7 +43,7 @@ void commandUCI()
  */
 void commandDebug()
 {
-    std::println("WARNING: Command 'debug' is not implemented.");
+    std::println(std::cout, "WARNING: Command 'debug' is not implemented.");
 }
 
 /*
@@ -60,7 +60,7 @@ void commandDebug()
  */
 void commandIsReady()
 {
-    std::println("readyok");
+    std::println(std::cout, "readyok");
 }
 
 /*
@@ -96,8 +96,8 @@ void commandSetOption(std::istringstream& uciStringStream)
             return;
         uciStringStream >> value;
     }
-    std::println("WARNING: Command 'setoption' is not implemented.");
-    std::println("Name: {}, Value: {}", name, value);
+    std::println(std::cout, "WARNING: Command 'setoption' is not implemented.");
+    std::println(std::cout, "Name: {}, Value: {}", name, value);
 }
 
 /*
@@ -118,7 +118,7 @@ void commandSetOption(std::istringstream& uciStringStream)
  */
 void commandRegister()
 {
-    std::println("WARNING: Command 'register' is not implemented.");
+    std::println(std::cout, "WARNING: Command 'register' is not implemented.");
 }
 
 /*
@@ -134,7 +134,7 @@ void commandRegister()
  */
 void commandUCINewGame()
 {
-    std::println("WARNING: Command 'ucinewgame' is not implemented.");
+    std::println(std::cout, "WARNING: Command 'ucinewgame' is not implemented.");
 }
 
 /*
@@ -171,7 +171,7 @@ void commandPosition(std::istringstream& uciStringStream)
     auto parsedPosition { Position::fromFen(fenPosition) };
     if(!parsedPosition)
     {
-        std::println("WARNING: Invalid 'position' command: {}", describe(parsedPosition.error()));
+        std::println(std::cout, "WARNING: Invalid 'position' command: {}", describe(parsedPosition.error()));
         return;
     }
     currentPosition = std::move(*parsedPosition);
@@ -184,7 +184,7 @@ void commandPosition(std::istringstream& uciStringStream)
         std::optional<Move> move { MoveGen::parseUCIMove(*currentPosition, uciPart) };
         if(!move)
         {
-            std::println("WARNING: Illegal or malformed move in 'position' command: {}", uciPart);
+            std::println(std::cout, "WARNING: Illegal or malformed move in 'position' command: {}", uciPart);
             return;
         }
 
@@ -250,7 +250,7 @@ void commandGoPerft(std::istringstream& uciStringStream)
 
     if(!currentPosition || depth < 1)
     {
-        std::println("WARNING: 'go perft' requires a position and a depth >= 1");
+        std::println(std::cout, "WARNING: 'go perft' requires a position and a depth >= 1");
         return;
     }
 
@@ -262,12 +262,12 @@ void commandGoPerft(std::istringstream& uciStringStream)
         std::uint64_t nodes { MoveGen::perft(*currentPosition, depth - 1) };
         currentPosition->unmakeMove(move, saved);
 
-        std::println("{}: {}", move.toUCIString(), nodes);
+        std::println(std::cout, "{}: {}", move.toUCIString(), nodes);
         totalNodes += nodes;
     }
 
-    std::println("");
-    std::println("Nodes searched: {}", totalNodes);
+    std::println(std::cout, "");
+    std::println(std::cout, "Nodes searched: {}", totalNodes);
 }
 
 void commandGo(std::istringstream& uciStringStream)
@@ -281,7 +281,7 @@ void commandGo(std::istringstream& uciStringStream)
         return;
     }
 
-    std::println("WARNING: Command 'go' is not implemented.");
+    std::println(std::cout, "WARNING: Command 'go' is not implemented.");
 }
 
 /*
@@ -291,7 +291,7 @@ void commandGo(std::istringstream& uciStringStream)
  */
 void commandStop()
 {
-    std::println("WARNING: Command 'stop' is not implemented.");
+    std::println(std::cout, "WARNING: Command 'stop' is not implemented.");
 }
 
 /*
@@ -301,7 +301,7 @@ void commandStop()
  */
 void commandPonderHit()
 {
-    std::println("WARNING: Command 'ponderhit' is not implemented.");
+    std::println(std::cout, "WARNING: Command 'ponderhit' is not implemented.");
 }
 
 /*
@@ -310,7 +310,7 @@ void commandPonderHit()
  */
 void commandQuit()
 {
-    std::println("WARNING: Command 'quit' is not implemented.");
+    std::println(std::cout, "WARNING: Command 'quit' is not implemented.");
 }
 
 } // namespace

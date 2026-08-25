@@ -5,6 +5,7 @@
 #include "position.h" // Position, UnmakeState
 #include "types.h" // LERFSquare, Piece, Rank, Side, Castle, U64
 
+#include <cstdint> // std::uint64_t
 #include <utility> // std::to_underlying
 
 namespace
@@ -290,4 +291,22 @@ MoveList MoveGen::generateLegalMoves(const Position& position)
     }
 
     return legalMoves;
+}
+
+std::uint64_t MoveGen::perft(const Position& position, int depth)
+{
+    if(depth == 0)
+        return 1;
+
+    MoveList legalMoves { generateLegalMoves(position) };
+    std::uint64_t nodes { 0 };
+    Position working { position };
+    for(Move move : legalMoves)
+    {
+        UnmakeState saved { working.makeMove(move) };
+        nodes += perft(working, depth - 1);
+        working.unmakeMove(move, saved);
+    }
+
+    return nodes;
 }

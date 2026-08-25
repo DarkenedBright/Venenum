@@ -3,6 +3,8 @@
 
 #include "move.h" // MoveList
 
+#include <cstdint> // std::uint64_t
+
 class Position;
 
 namespace MoveGen
@@ -21,6 +23,16 @@ void generatePawnMoves(const Position& position, MoveList& moves);
  * https://www.chessprogramming.org/Legal_Move.
  */
 [[nodiscard]] MoveList generateLegalMoves(const Position& position);
+
+/*
+ * Count the leaf nodes reachable from position after exactly depth
+ * plies of legal moves. The standard move-generator correctness test:
+ * known node counts for well-studied positions (starting position,
+ * Kiwipete) catch subtle move-generation bugs that unit tests on
+ * individual pieces miss. See
+ * https://www.chessprogramming.org/Perft.
+ */
+[[nodiscard]] std::uint64_t perft(const Position& position, int depth);
 
 } // namespace MoveGen
 

@@ -14,6 +14,45 @@ TEST_CASE("knight attacks from corner squares")
     CHECK(KNIGHT_ATTACKS[std::to_underlying(LERFSquare::H8)] == 0x20400000000000ULL);
 }
 
+namespace
+{
+
+/*
+ * Independently derive a square's knight-move pattern from coordinate
+ * arithmetic, rather than from any precomputed table, so a test built
+ * on this can catch a transcription error in KNIGHT_ATTACKS itself
+ * (as opposed to merely re-checking the table against its own spot
+ * values).
+ */
+[[nodiscard]] U64 knightAttacksReference(int sq)
+{
+    int file { sq % 8 };
+    int rank { sq / 8 };
+    int deltas[8][2] { {1,2}, {1,-2}, {-1,2}, {-1,-2}, {2,1}, {2,-1}, {-2,1}, {-2,-1} };
+
+    U64 attacks { 0 };
+    for(const auto& delta : deltas)
+    {
+        int newFile { file + delta[0] };
+        int newRank { rank + delta[1] };
+        if(newFile >= 0 && newFile < 8 && newRank >= 0 && newRank < 8)
+        {
+            attacks |= squareToBitboard(newRank * 8 + newFile);
+        }
+    }
+    return attacks;
+}
+
+} // namespace
+
+TEST_CASE("KNIGHT_ATTACKS matches an independently computed knight-move pattern for every square")
+{
+    for(int sq { std::to_underlying(LERFSquare::A1) }; sq < std::to_underlying(LERFSquare::NUM_SQUARES); ++sq)
+    {
+        CHECK(KNIGHT_ATTACKS[static_cast<std::size_t>(sq)] == knightAttacksReference(sq));
+    }
+}
+
 TEST_CASE("king attacks from corner squares")
 {
     CHECK(KING_ATTACKS[std::to_underlying(LERFSquare::A1)] == 0x302ULL);

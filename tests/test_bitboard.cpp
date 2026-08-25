@@ -1,4 +1,4 @@
-#include "bitboard.h" // popcount, setBit, resetBit, squareToBitboard
+#include "bitboard.h" // popcount, setBit, resetBit, squareToBitboard, getLSBIndex
 #include "doctest.h" // TEST_CASE, CHECK
 
 TEST_CASE("popcount counts set bits")
@@ -62,4 +62,32 @@ TEST_CASE("squareToBitboard corner squares")
 {
     CHECK(squareToBitboard(0) == 1ULL); // A1
     CHECK(squareToBitboard(63) == 0x8000000000000000ULL); // H8
+}
+
+TEST_CASE("getLSBIndex finds the set bit of a single-bit bitboard")
+{
+    for(int sq { 0 }; sq < 64; ++sq)
+    {
+        CHECK(getLSBIndex(squareToBitboard(sq)) == sq);
+    }
+}
+
+TEST_CASE("getLSBIndex returns the lowest set bit of a multi-bit bitboard")
+{
+    CHECK(getLSBIndex(0xFFFFFFFFFFFFFFFFULL) == 0);
+    CHECK(getLSBIndex(0xF000000000000000ULL) == 60);
+    CHECK(getLSBIndex(setBit(setBit(0ULL, 40), 12)) == 12);
+    CHECK(getLSBIndex(0x8000000000000001ULL) == 0);
+}
+
+TEST_CASE("getLSBIndex composed with resetBit clears exactly the least significant bit")
+{
+    U64 bb { 0x123456789ABCDEF0ULL };
+    while(bb != 0)
+    {
+        int before { popcount(bb) };
+        int lsb { getLSBIndex(bb) };
+        bb = resetBit(bb, lsb);
+        CHECK(popcount(bb) == before - 1);
+    }
 }

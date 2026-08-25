@@ -1,5 +1,7 @@
+-xc++
 -std=c++23
 -Isrc
+-fconstexpr-steps=100000000
 -Wall
 -Wextra
 -Wshadow

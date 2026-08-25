@@ -6,6 +6,9 @@
 #include "types.h" // LERFSquare, Piece, Rank, Side, Castle, U64
 
 #include <cstdint> // std::uint64_t
+#include <optional> // std::optional, std::nullopt
+#include <string> // std::string
+#include <string_view> // std::string_view
 #include <utility> // std::to_underlying
 
 namespace
@@ -309,4 +312,24 @@ std::uint64_t MoveGen::perft(const Position& position, int depth)
     }
 
     return nodes;
+}
+
+std::optional<Move> MoveGen::parseUCIMove(const Position& position, std::string_view moveString)
+{
+    if(moveString.size() != 4 && moveString.size() != 5)
+        return std::nullopt;
+
+    std::string normalized { moveString };
+    if(normalized.size() == 5 && normalized[4] >= 'A' && normalized[4] <= 'Z')
+    {
+        normalized[4] = static_cast<char>(normalized[4] - 'A' + 'a');
+    }
+
+    for(Move move : generateLegalMoves(position))
+    {
+        if(move.toUCIString() == normalized)
+            return move;
+    }
+
+    return std::nullopt;
 }

@@ -1,8 +1,10 @@
 #include "doctest.h" // TEST_CASE, CHECK, REQUIRE
 #include "move.h" // Move, MoveFlag, MoveList
-#include "movegen.h" // MoveGen::generateKnightMoves, MoveGen::generateKingMoves, MoveGen::generateSlidingMoves, MoveGen::generatePawnMoves, MoveGen::generateLegalMoves
+#include "movegen.h" // MoveGen::generateKnightMoves, MoveGen::generateKingMoves, MoveGen::generateSlidingMoves, MoveGen::generatePawnMoves, MoveGen::generateLegalMoves, MoveGen::parseUCIMove
 #include "position.h" // Position, STANDARD_START_FEN
 #include "types.h" // LERFSquare
+
+#include <optional> // std::optional
 
 namespace
 {
@@ -384,4 +386,46 @@ TEST_CASE("generateLegalMoves excludes moves that walk an absolutely pinned piec
     CHECK_FALSE(contains(moves, Move(LERFSquare::E3, LERFSquare::F4, MoveFlag::QUIET)));
     CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::D1, MoveFlag::QUIET)));
     CHECK(contains(moves, Move(LERFSquare::E1, LERFSquare::E2, MoveFlag::QUIET)));
+}
+
+TEST_CASE("parseUCIMove parses a double pawn push from the starting position")
+{
+    Position position { parsePosition(STANDARD_START_FEN) };
+    std::optional<Move> move { MoveGen::parseUCIMove(position, "e2e4") };
+
+    REQUIRE(move.has_value());
+    CHECK(move.value() == Move(LERFSquare::E2, LERFSquare::E4, MoveFlag::DOUBLE_PAWN_PUSH));
+}
+
+TEST_CASE("parseUCIMove parses a queen promotion, including an uppercase promotion letter")
+{
+    Position position { parsePosition("8/4P3/8/8/8/8/8/4K2k w - - 0 1") };
+
+    std::optional<Move> lower { MoveGen::parseUCIMove(position, "e7e8q") };
+    REQUIRE(lower.has_value());
+    CHECK(lower.value() == Move(LERFSquare::E7, LERFSquare::E8, MoveFlag::QUEEN_PROMO));
+
+    std::optional<Move> upper { MoveGen::parseUCIMove(position, "e7e8Q") };
+    REQUIRE(upper.has_value());
+    CHECK(upper.value() == Move(LERFSquare::E7, LERFSquare::E8, MoveFlag::QUEEN_PROMO));
+}
+
+TEST_CASE("parseUCIMove parses a castle move from a castle-ready position")
+{
+    Position position { parsePosition("8/8/8/8/8/8/8/R3K2R w KQkq - 0 1") };
+    std::optional<Move> move { MoveGen::parseUCIMove(position, "e1g1") };
+
+    REQUIRE(move.has_value());
+    CHECK(move.value() == Move(LERFSquare::E1, LERFSquare::G1, MoveFlag::KING_CASTLE));
+}
+
+TEST_CASE("parseUCIMove returns std::nullopt for a malformed or illegal move string")
+{
+    Position position { parsePosition(STANDARD_START_FEN) };
+
+    CHECK_FALSE(MoveGen::parseUCIMove(position, "").has_value());
+    CHECK_FALSE(MoveGen::parseUCIMove(position, "e2").has_value());
+    CHECK_FALSE(MoveGen::parseUCIMove(position, "e2e4e5").has_value());
+    CHECK_FALSE(MoveGen::parseUCIMove(position, "z9z1").has_value());
+    CHECK_FALSE(MoveGen::parseUCIMove(position, "e2e5").has_value()); // not a legal pawn move
 }

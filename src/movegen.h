@@ -1,9 +1,11 @@
 #ifndef MOVEGEN_H
 #define MOVEGEN_H
 
-#include "move.h" // MoveList
+#include "move.h" // Move, MoveList
 
 #include <cstdint> // std::uint64_t
+#include <optional> // std::optional
+#include <string_view> // std::string_view
 
 class Position;
 
@@ -33,6 +35,17 @@ void generatePawnMoves(const Position& position, MoveList& moves);
  * https://www.chessprogramming.org/Perft.
  */
 [[nodiscard]] std::uint64_t perft(const Position& position, int depth);
+
+/*
+ * Parse a UCI move string (e.g. "e2e4", "e7e8q") against position's
+ * legal moves, returning the matching Move or std::nullopt if the
+ * string is malformed or doesn't name a legal move. Matches by
+ * comparing against each legal move's own toUCIString() rather than
+ * parsing squares independently, so a malformed or illegal string
+ * can never accidentally decode into a Move. See
+ * https://www.chessprogramming.org/UCI.
+ */
+[[nodiscard]] std::optional<Move> parseUCIMove(const Position& position, std::string_view moveString);
 
 } // namespace MoveGen
 

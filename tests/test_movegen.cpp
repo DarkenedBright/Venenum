@@ -1,0 +1,175 @@
+#include "doctest.h" // TEST_CASE, CHECK, REQUIRE
+#include "move.h" // Move, MoveFlag, MoveList
+#include "movegen.h" // MoveGen::generateKnightMoves, MoveGen::generateKingMoves, MoveGen::generateSlidingMoves
+#include "position.h" // Position
+#include "types.h" // LERFSquare
+
+namespace
+{
+
+[[nodiscard]] Position parsePosition(const std::string& fen)
+{
+    auto result { Position::fromFen(fen) };
+    REQUIRE(result.has_value());
+    return result.value();
+}
+
+[[nodiscard]] int countQuiet(const MoveList& moves)
+{
+    int count { 0 };
+    for(const Move& move : moves)
+    {
+        if(move.flag() == MoveFlag::QUIET) ++count;
+    }
+    return count;
+}
+
+[[nodiscard]] int countCaptures(const MoveList& moves)
+{
+    int count { 0 };
+    for(const Move& move : moves)
+    {
+        if(move.isCapture()) ++count;
+    }
+    return count;
+}
+
+[[nodiscard]] bool contains(const MoveList& moves, Move expected)
+{
+    for(const Move& move : moves)
+    {
+        if(move == expected) return true;
+    }
+    return false;
+}
+
+} // namespace
+
+TEST_CASE("generateKnightMoves produces 8 quiet moves for a lone knight in the center")
+{
+    Position position { parsePosition("8/8/8/8/3N4/8/8/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generateKnightMoves(position, moves);
+
+    CHECK(moves.size() == 8);
+    CHECK(countQuiet(moves) == 8);
+}
+
+TEST_CASE("generateKnightMoves produces 2 quiet moves for a lone knight in the corner")
+{
+    Position position { parsePosition("8/8/8/8/8/8/8/N7 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generateKnightMoves(position, moves);
+
+    CHECK(moves.size() == 2);
+    CHECK(countQuiet(moves) == 2);
+}
+
+TEST_CASE("generateKnightMoves flags an enemy-occupied destination as a capture and excludes an own-occupied one")
+{
+    Position position { parsePosition("8/8/8/1p3P2/3N4/8/8/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generateKnightMoves(position, moves);
+
+    CHECK(moves.size() == 7);
+    CHECK(countCaptures(moves) == 1);
+    CHECK(contains(moves, Move(LERFSquare::D4, LERFSquare::B5, MoveFlag::CAPTURE)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::F5, MoveFlag::QUIET)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::F5, MoveFlag::CAPTURE)));
+}
+
+TEST_CASE("generateKingMoves produces 8 quiet moves for a lone king in the center")
+{
+    Position position { parsePosition("8/8/8/8/4K3/8/8/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generateKingMoves(position, moves);
+
+    CHECK(moves.size() == 8);
+    CHECK(countQuiet(moves) == 8);
+}
+
+TEST_CASE("generateKingMoves flags an enemy-occupied neighbor as a capture and excludes an own-occupied one")
+{
+    Position position { parsePosition("8/8/8/4P3/4K3/3p4/8/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generateKingMoves(position, moves);
+
+    CHECK(moves.size() == 7);
+    CHECK(countCaptures(moves) == 1);
+    CHECK(contains(moves, Move(LERFSquare::E4, LERFSquare::D3, MoveFlag::CAPTURE)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::E4, LERFSquare::E5, MoveFlag::QUIET)));
+}
+
+TEST_CASE("generateSlidingMoves produces 14 quiet moves for a lone rook in the open")
+{
+    Position position { parsePosition("8/8/8/8/3R4/8/8/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generateSlidingMoves(position, moves);
+
+    CHECK(moves.size() == 14);
+    CHECK(countQuiet(moves) == 14);
+}
+
+TEST_CASE("generateSlidingMoves stops a rook at the first blocker in each direction")
+{
+    Position position { parsePosition("8/8/3P4/8/3R1p2/8/8/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generateSlidingMoves(position, moves);
+
+    CHECK(moves.size() == 9);
+    CHECK(countQuiet(moves) == 8);
+    CHECK(countCaptures(moves) == 1);
+    CHECK(contains(moves, Move(LERFSquare::D4, LERFSquare::D5, MoveFlag::QUIET)));
+    CHECK(contains(moves, Move(LERFSquare::D4, LERFSquare::F4, MoveFlag::CAPTURE)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::D6, MoveFlag::QUIET)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::D7, MoveFlag::QUIET)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::G4, MoveFlag::QUIET)));
+}
+
+TEST_CASE("generateSlidingMoves produces 13 quiet moves for a lone bishop in the center")
+{
+    Position position { parsePosition("8/8/8/8/3B4/8/8/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generateSlidingMoves(position, moves);
+
+    CHECK(moves.size() == 13);
+    CHECK(countQuiet(moves) == 13);
+}
+
+TEST_CASE("generateSlidingMoves stops a bishop at the first blocker in each diagonal direction")
+{
+    Position position { parsePosition("8/8/5p2/8/3B4/8/1P6/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generateSlidingMoves(position, moves);
+
+    CHECK(moves.size() == 9);
+    CHECK(countQuiet(moves) == 8);
+    CHECK(countCaptures(moves) == 1);
+    CHECK(contains(moves, Move(LERFSquare::D4, LERFSquare::F6, MoveFlag::CAPTURE)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::G7, MoveFlag::QUIET)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::B2, MoveFlag::QUIET)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::A1, MoveFlag::QUIET)));
+}
+
+TEST_CASE("generateSlidingMoves produces 27 quiet moves for a lone queen in the center")
+{
+    Position position { parsePosition("8/8/8/8/3Q4/8/8/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generateSlidingMoves(position, moves);
+
+    CHECK(moves.size() == 27);
+    CHECK(countQuiet(moves) == 27);
+}
+
+TEST_CASE("generateSlidingMoves respects blockers on both the orthogonal and diagonal lines of a queen")
+{
+    Position position { parsePosition("8/8/3P1p2/8/3Q4/8/8/8 w - - 0 1") };
+    MoveList moves;
+    MoveGen::generateSlidingMoves(position, moves);
+
+    CHECK(countCaptures(moves) == 1);
+    CHECK(contains(moves, Move(LERFSquare::D4, LERFSquare::F6, MoveFlag::CAPTURE)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::D6, MoveFlag::QUIET)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::D7, MoveFlag::QUIET)));
+    CHECK_FALSE(contains(moves, Move(LERFSquare::D4, LERFSquare::G7, MoveFlag::QUIET)));
+}

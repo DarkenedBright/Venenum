@@ -1,6 +1,9 @@
 #include "uci.h"
-#include "position.h" // Position, Position::fromFen, describe, STANDARD_START_FEN
+#include "move.h" // Move, MoveList
+#include "movegen.h" // MoveGen::generateLegalMoves, MoveGen::perft, MoveGen::parseUCIMove
+#include "position.h" // Position, Position::fromFen, describe, STANDARD_START_FEN, UnmakeState
 
+#include <cstdint> // std::uint64_t
 #include <iostream> // std::cin
 #include <optional> // std::optional
 #include <print> // std::println
@@ -175,14 +178,18 @@ void commandPosition(std::istringstream& uciStringStream)
 
     if(uciPart != "moves")
         return;
-    
+
     while(uciStringStream >> uciPart)
     {
-        //TODO Apply move to position in order
-    }
+        std::optional<Move> move { MoveGen::parseUCIMove(*currentPosition, uciPart) };
+        if(!move)
+        {
+            std::println("WARNING: Illegal or malformed move in 'position' command: {}", uciPart);
+            return;
+        }
 
-    std::println("WARNING: Command 'position' is not implemented.");
-    std::println("FEN: {}", fenPosition);
+        [[maybe_unused]] UnmakeState saved { currentPosition->makeMove(*move) };
+    }
 }
 
 /*
@@ -227,10 +234,53 @@ void commandPosition(std::istringstream& uciStringStream)
  * * infinite
  *     search until the "stop" command. Do not exit the search without being told so in this mode!
  */
+/*
+ * go perft <depth>
+ * Not part of the standard UCI protocol, but a widely-supported
+ * engine debugging extension: divide the perft node count at depth
+ * by root move, printing each root move's subtree count followed by
+ * the total, so a GUI or script can bisect a move-generator bug
+ * against a reference engine's per-move counts. See
+ * https://www.chessprogramming.org/Perft#Divide.
+ */
+void commandGoPerft(std::istringstream& uciStringStream)
+{
+    int depth {};
+    uciStringStream >> depth;
+
+    if(!currentPosition || depth < 1)
+    {
+        std::println("WARNING: 'go perft' requires a position and a depth >= 1");
+        return;
+    }
+
+    MoveList legalMoves { MoveGen::generateLegalMoves(*currentPosition) };
+    std::uint64_t totalNodes { 0 };
+    for(Move move : legalMoves)
+    {
+        UnmakeState saved { currentPosition->makeMove(move) };
+        std::uint64_t nodes { MoveGen::perft(*currentPosition, depth - 1) };
+        currentPosition->unmakeMove(move, saved);
+
+        std::println("{}: {}", move.toUCIString(), nodes);
+        totalNodes += nodes;
+    }
+
+    std::println("");
+    std::println("Nodes searched: {}", totalNodes);
+}
+
 void commandGo(std::istringstream& uciStringStream)
 {
     std::string uciPart {};
     uciStringStream >> uciPart;
+
+    if(uciPart == "perft")
+    {
+        commandGoPerft(uciStringStream);
+        return;
+    }
+
     std::println("WARNING: Command 'go' is not implemented.");
 }
 
